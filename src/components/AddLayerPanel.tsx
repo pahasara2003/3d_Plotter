@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Code2, X, Sparkles, Layers, Sliders } from 'lucide-react';
+import { Plus, Code2, X, Sparkles, Layers, Sliders, Activity } from 'lucide-react';
 import { MainTabType, SchemeType, LayerItem, LayerType } from '../types';
 import { PALETTE } from '../constants/presets';
 import { ScriptCodeEditor } from './ScriptCodeEditor';
@@ -18,20 +18,34 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
   const [mainTab, setMainTab] = useState<MainTabType>('surfaceplot');
   const [schemes, setSchemes] = useState<Record<MainTabType, SchemeType>>({
     surfaceplot: 'cart',
+    densityplot: 'cart',
     vectorfield: 'cart',
     parametric: 'cart',
     script: 'cart',
   });
 
-  // Form Inputs
+  // Surface equations
   const [surfEq, setSurfEq] = useState('sin(sqrt(x^2+y^2))');
   const [sphEq, setSphEq] = useState('2');
   const [cylEq, setCylEq] = useState('1');
 
+  // Density 3D scalar potential field equations
+  const [densityEq, setDensityEq] = useState('exp(-sqrt(x^2+y^2+z^2)*0.8) * abs(2*z^2 - x^2 - y^2)^1.2');
+  const [densitySphEq, setDensitySphEq] = useState('rho^2 * exp(-rho/1.5) * abs(3*cos(phi)^2 - 1)');
+  const [densityCylEq, setDensityCylEq] = useState('exp(-(r^2+z^2)/4) * abs(cos(2*theta))');
+  const [densityColormap, setDensityColormap] = useState('thermal');
+  const [densityThreshold, setDensityThreshold] = useState(0.06);
+  const [densityCoreIso, setDensityCoreIso] = useState(0.75);
+  const [densityMultiplier, setDensityMultiplier] = useState(1.4);
+  const [densityPower, setDensityPower] = useState(1.2);
+  const [showDensityBoundingBox, setShowDensityBoundingBox] = useState(true);
+
+  // Vector field equations
   const [fieldEq, setFieldEq] = useState('[-y, x, 0.3]');
   const [fieldSphEq, setFieldSphEq] = useState('[0, 1, 0]');
   const [fieldCylEq, setFieldCylEq] = useState('[0, 1, 0.2]');
 
+  // Parametric curves
   const [px, setPx] = useState('cos(t)');
   const [py, setPy] = useState('sin(t)');
   const [pz, setPz] = useState('t/5');
@@ -44,6 +58,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
   const [pThetaC, setPThetaC] = useState('t');
   const [pZ, setPZ] = useState('t/5');
 
+  // Script code
   const [script, setScript] = useState(
     `// Sinc 3D Surface Generator\nplotSurface((x, y) => {\n  const r = Math.sqrt(x*x + y*y) + 0.001;\n  return (Math.sin(r) / r) * 3;\n});`
   );
@@ -51,7 +66,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
   const [layerColor, setLayerColor] = useState(nextColor || PALETTE[0]);
   const [layerName, setLayerName] = useState('');
   const [rangeR, setRangeR] = useState(5);
-  const [resolutionN, setResolutionN] = useState(55);
+  const [resolutionN, setResolutionN] = useState(45);
 
   const curScheme = schemes[mainTab];
 
@@ -64,6 +79,8 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
 
     if (mainTab === 'surfaceplot') {
       type = curScheme === 'cart' ? 'surface' : curScheme === 'sph' ? 'spherical' : 'cylindrical';
+    } else if (mainTab === 'densityplot') {
+      type = curScheme === 'cart' ? 'density' : curScheme === 'sph' ? 'densitySph' : 'densityCyl';
     } else if (mainTab === 'vectorfield') {
       type = curScheme === 'cart' ? 'field' : curScheme === 'sph' ? 'fieldSph' : 'fieldCyl';
     } else if (mainTab === 'parametric') {
@@ -92,6 +109,33 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
     } else if (type === 'cylindrical') {
       layerData.eq = cylEq.trim();
       layerData.name = computedName || `r = ${layerData.eq}`;
+    } else if (type === 'density') {
+      layerData.eq = densityEq.trim();
+      layerData.colorMap = densityColormap;
+      layerData.threshold = densityThreshold;
+      layerData.densityPower = densityPower;
+      layerData.coreIso = densityCoreIso;
+      layerData.volumeDensity = densityMultiplier;
+      layerData.showBoundingBox = showDensityBoundingBox;
+      layerData.name = computedName || `3D Volume: ${layerData.eq}`;
+    } else if (type === 'densitySph') {
+      layerData.eq = densitySphEq.trim();
+      layerData.colorMap = densityColormap;
+      layerData.threshold = densityThreshold;
+      layerData.densityPower = densityPower;
+      layerData.coreIso = densityCoreIso;
+      layerData.volumeDensity = densityMultiplier;
+      layerData.showBoundingBox = showDensityBoundingBox;
+      layerData.name = computedName || `Sph Volume: ${layerData.eq}`;
+    } else if (type === 'densityCyl') {
+      layerData.eq = densityCylEq.trim();
+      layerData.colorMap = densityColormap;
+      layerData.threshold = densityThreshold;
+      layerData.densityPower = densityPower;
+      layerData.coreIso = densityCoreIso;
+      layerData.volumeDensity = densityMultiplier;
+      layerData.showBoundingBox = showDensityBoundingBox;
+      layerData.name = computedName || `Cyl Volume: ${layerData.eq}`;
     } else if (type === 'field') {
       layerData.eq = fieldEq.trim();
       layerData.name = computedName || layerData.eq;
@@ -135,7 +179,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
           </div>
           <div>
             <h2 className="text-sm font-semibold text-slate-100">Add New Plot</h2>
-            <p className="text-[11px] text-slate-500">Choose plot type, coordinates or script</p>
+            <p className="text-[11px] text-slate-500">Surface, 3D Density Field, Vector, or Curve</p>
           </div>
         </div>
 
@@ -153,13 +197,14 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
 
       {/* Main Tab Navigation Bar */}
       <div className="px-4 pt-3 pb-2 shrink-0">
-        <div className="flex gap-1 bg-[#18181e] p-1 rounded-xl border border-white/[0.08]">
-          {(['surfaceplot', 'vectorfield', 'parametric', 'script'] as MainTabType[]).map((tab) => {
+        <div className="flex flex-wrap gap-1 bg-[#18181e] p-1 rounded-xl border border-white/[0.08]">
+          {(['surfaceplot', 'densityplot', 'vectorfield', 'parametric', 'script'] as MainTabType[]).map((tab) => {
             const labels: Record<MainTabType, string> = {
               surfaceplot: 'Surface',
-              vectorfield: 'Vector Field',
-              parametric: 'Parametric',
-              script: 'Script Code',
+              densityplot: '3D Density',
+              vectorfield: 'Vectors',
+              parametric: 'Curve',
+              script: 'Script',
             };
             const isActive = mainTab === tab;
             return (
@@ -167,7 +212,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                 key={tab}
                 type="button"
                 onClick={() => setMainTab(tab)}
-                className={`flex-1 py-1.5 px-1.5 text-[11.5px] font-medium rounded-lg transition-all cursor-pointer truncate text-center ${
+                className={`flex-1 min-w-[62px] py-1.5 px-1.5 text-[11px] font-medium rounded-lg transition-all cursor-pointer truncate text-center ${
                   isActive
                     ? 'bg-indigo-600 text-white shadow-sm font-semibold'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
@@ -191,9 +236,9 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
             <div className="flex gap-1.5">
               {(['cart', 'sph', 'cyl'] as SchemeType[]).map((sch) => {
                 const labels: Record<SchemeType, string> = {
-                  cart: 'Cartesian (x, y, z)',
-                  sph: 'Spherical (ρ, θ, φ)',
-                  cyl: 'Cylindrical (r, θ, z)',
+                  cart: 'Cartesian (x,y,z)',
+                  sph: 'Spherical (ρ,θ,φ)',
+                  cyl: 'Cylindrical (r,θ,z)',
                 };
                 const isActive = curScheme === sch;
                 return (
@@ -224,7 +269,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                   <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-300 font-mono">
                     z = f(x, y)
                   </span>
-                  <span className="text-[10px] text-slate-500">Cartesian Equation</span>
+                  <span className="text-[10px] text-slate-500">Cartesian Surface</span>
                 </div>
                 <input
                   type="text"
@@ -326,7 +371,250 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
           </div>
         )}
 
-        {/* 2. VECTOR FIELD INPUTS */}
+        {/* 2. 3D DENSITY SCALAR FIELD PLOT INPUTS */}
+        {mainTab === 'densityplot' && (
+          <div className="flex flex-col gap-3 bg-[#16161b] p-3.5 rounded-xl border border-white/[0.08]">
+            {curScheme === 'cart' && (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-300 font-mono">
+                    V(x, y, z) · Scalar Potential Field
+                  </span>
+                  <span className="text-[10px] text-violet-400 font-mono">Volumetric Density</span>
+                </div>
+                <input
+                  type="text"
+                  value={densityEq}
+                  onChange={(e) => setDensityEq(e.target.value)}
+                  className="w-full font-mono text-sm px-3 py-2 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                  placeholder="1/sqrt((x-1)^2+y^2+z^2+0.1) - 1/sqrt((x+1)^2+y^2+z^2+0.1)"
+                />
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {[
+                    {
+                      label: 'dz² Orbital (Lobes + Torus)',
+                      eq: 'exp(-sqrt(x^2+y^2+z^2)*0.8) * abs(2*z^2 - x^2 - y^2)^1.2',
+                    },
+                    {
+                      label: 'Hydrogen 2pz Lobes',
+                      eq: 'abs(z) * exp(-sqrt(x^2+y^2+z^2)/1.2)',
+                    },
+                    {
+                      label: '3dxy 4-Leaf Clover',
+                      eq: 'abs(x*y) * exp(-sqrt(x^2+y^2+z^2)/1.2)',
+                    },
+                    {
+                      label: 'Electric Dipole',
+                      eq: 'abs(1/sqrt((x-1.3)^2+y^2+z^2+0.12) - 1/sqrt((x+1.3)^2+y^2+z^2+0.12))',
+                    },
+                    {
+                      label: 'Quadrupole Field',
+                      eq: 'abs(2*z^2 - x^2 - y^2) / (x^2 + y^2 + z^2 + 0.25)^1.8',
+                    },
+                    {
+                      label: 'Torus Ring Vortex',
+                      eq: 'exp(-((sqrt(x^2+y^2)-2.0)^2 + z^2)/1.2)',
+                    },
+                  ].map((p) => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => setDensityEq(p.eq)}
+                      className="px-2.5 py-1 text-[11px] font-medium rounded-full border border-white/[0.08] text-slate-400 hover:text-violet-200 hover:border-violet-400/40 hover:bg-violet-500/10 transition-all cursor-pointer"
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {curScheme === 'sph' && (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-300 font-mono">
+                    V(ρ, θ, φ) · Spherical Scalar Field
+                  </span>
+                  <span className="text-[10px] text-violet-400 font-mono">Continuous Volume</span>
+                </div>
+                <input
+                  type="text"
+                  value={densitySphEq}
+                  onChange={(e) => setDensitySphEq(e.target.value)}
+                  className="w-full font-mono text-sm px-3 py-2 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                  placeholder="rho^2 * exp(-rho/1.5) * abs(3*cos(phi)^2 - 1)"
+                />
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {[
+                    { label: 'dz² Orbital (Lobes + Torus)', eq: 'rho^2 * exp(-rho/1.5) * abs(3*cos(phi)^2 - 1)' },
+                    { label: 'dxz Orbital', eq: 'rho^2 * exp(-rho/1.5) * abs(sin(phi)*cos(phi)*cos(theta))' },
+                    { label: 'Radial Shells', eq: 'abs(sin(rho*2)) / (rho + 0.2)' },
+                    { label: 'Spherical Harmonic', eq: 'abs(sin(2*theta)*cos(phi)) * exp(-rho/3)' },
+                  ].map((p) => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => setDensitySphEq(p.eq)}
+                      className="px-2.5 py-1 text-[11px] font-medium rounded-full border border-white/[0.08] text-slate-400 hover:text-violet-200 hover:border-violet-400/40 hover:bg-violet-500/10 transition-all cursor-pointer"
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {curScheme === 'cyl' && (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-300 font-mono">
+                    V(r, θ, z) · Cylindrical Scalar Field
+                  </span>
+                  <span className="text-[10px] text-violet-400 font-mono">Continuous Volume</span>
+                </div>
+                <input
+                  type="text"
+                  value={densityCylEq}
+                  onChange={(e) => setDensityCylEq(e.target.value)}
+                  className="w-full font-mono text-sm px-3 py-2 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                  placeholder="exp(-(r^2+z^2)/4) * abs(cos(2*theta))"
+                />
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {[
+                    { label: 'Ring Torus Core', eq: 'exp(-((r-2)^2 + z^2)/1.2)' },
+                    { label: 'Plasma Column', eq: 'exp(-r^2/2) * abs(cos(z))' },
+                    { label: 'Helical Waveguide', eq: 'abs(sin(theta - z)) * exp(-r/2)' },
+                  ].map((p) => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => setDensityCylEq(p.eq)}
+                      className="px-2.5 py-1 text-[11px] font-medium rounded-full border border-white/[0.08] text-slate-400 hover:text-violet-200 hover:border-violet-400/40 hover:bg-violet-500/10 transition-all cursor-pointer"
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Density Styling Controls (Colormap, Solid Core, Opacity Cutoff, Multiplier) */}
+            <div className="flex flex-col gap-2.5 pt-2 border-t border-white/[0.06]">
+              <div className="flex items-center justify-between">
+                <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
+                  Colormap
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {['thermal', 'turbo', 'plasma', 'viridis', 'magma', 'coolwarm'].map((cmap) => (
+                    <button
+                      key={cmap}
+                      type="button"
+                      onClick={() => setDensityColormap(cmap)}
+                      className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                        densityColormap === cmap
+                          ? 'bg-violet-500/20 text-violet-300 border-violet-500/50 font-semibold'
+                          : 'bg-[#101014] text-slate-400 hover:text-slate-200 border-white/[0.08]'
+                      }`}
+                    >
+                      {cmap}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between text-[10.5px] text-slate-400">
+                    <span>Solid Core (Isosurface)</span>
+                    <span className="font-mono text-violet-300 font-semibold">
+                      {Math.round(densityCoreIso * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={Math.round(densityCoreIso * 100)}
+                    onChange={(e) => setDensityCoreIso(parseInt(e.target.value) / 100)}
+                    className="accent-violet-500 h-1.5 cursor-pointer rounded bg-[#101014]"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between text-[10.5px] text-slate-400">
+                    <span>Opacity Cutoff</span>
+                    <span className="font-mono text-violet-300 font-semibold">
+                      {Math.round(densityThreshold * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="50"
+                    step="1"
+                    value={Math.round(densityThreshold * 100)}
+                    onChange={(e) => setDensityThreshold(parseInt(e.target.value) / 100)}
+                    className="accent-violet-500 h-1.5 cursor-pointer rounded bg-[#101014]"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between text-[10.5px] text-slate-400">
+                    <span>Density Intensity</span>
+                    <span className="font-mono text-violet-300 font-semibold">
+                      {densityMultiplier.toFixed(1)}x
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="3"
+                    max="30"
+                    step="1"
+                    value={Math.round(densityMultiplier * 10)}
+                    onChange={(e) => setDensityMultiplier(parseInt(e.target.value) / 10)}
+                    className="accent-violet-500 h-1.5 cursor-pointer rounded bg-[#101014]"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between text-[10.5px] text-slate-400">
+                    <span>Falloff Curve</span>
+                    <span className="font-mono text-violet-300 font-semibold">
+                      {densityPower.toFixed(1)}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="5"
+                    max="25"
+                    step="1"
+                    value={Math.round(densityPower * 10)}
+                    onChange={(e) => setDensityPower(parseInt(e.target.value) / 10)}
+                    className="accent-violet-500 h-1.5 cursor-pointer rounded bg-[#101014]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[10.5px] text-slate-400">Domain Bounding Cage</span>
+                <button
+                  type="button"
+                  onClick={() => setShowDensityBoundingBox(!showDensityBoundingBox)}
+                  className={`text-[10.5px] font-mono px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                    showDensityBoundingBox
+                      ? 'bg-violet-500/20 text-violet-300 border-violet-500/40'
+                      : 'bg-[#101014] text-slate-500 border-white/[0.08]'
+                  }`}
+                >
+                  {showDensityBoundingBox ? 'Visible' : 'Hidden'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 3. VECTOR FIELD INPUTS */}
         {mainTab === 'vectorfield' && (
           <div className="flex flex-col gap-2.5 bg-[#16161b] p-3.5 rounded-xl border border-white/[0.08]">
             {curScheme === 'cart' && (
@@ -434,7 +722,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
           </div>
         )}
 
-        {/* 3. PARAMETRIC CURVE INPUTS */}
+        {/* 4. PARAMETRIC CURVE INPUTS */}
         {mainTab === 'parametric' && (
           <div className="flex flex-col gap-2.5 bg-[#16161b] p-3.5 rounded-xl border border-white/[0.08]">
             {curScheme === 'cart' && (
@@ -589,7 +877,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
           </div>
         )}
 
-        {/* 4. SCRIPT CODE EDITOR (LARGER WITH SYNTAX HIGHLIGHTING) */}
+        {/* 5. SCRIPT CODE EDITOR (LARGER WITH SYNTAX HIGHLIGHTING) */}
         {mainTab === 'script' && (
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">

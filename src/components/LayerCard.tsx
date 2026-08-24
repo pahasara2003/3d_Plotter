@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Eye, EyeOff, Edit3, Copy, Trash2, Check, X } from 'lucide-react';
+import { Eye, EyeOff, Edit3, Copy, Trash2, Check, X, Sparkles } from 'lucide-react';
 import { LayerItem } from '../types';
 import { typeLabel, buildLatexDisplay, renderKatexToString } from '../utils/mathUtils';
 import { ScriptCodeEditor } from './ScriptCodeEditor';
@@ -34,6 +34,12 @@ export const LayerCard: React.FC<LayerCardProps> = ({
   const [pR, setPR] = useState(layer.pR || '');
   const [pThetaC, setPThetaC] = useState(layer.pThetaC || '');
   const [pZ, setPZ] = useState(layer.pZ || '');
+  const [colorMap, setColorMap] = useState(layer.colorMap || 'thermal');
+  const [threshold, setThreshold] = useState(layer.threshold ?? 0.06);
+  const [coreIso, setCoreIso] = useState(layer.coreIso ?? 0.75);
+  const [volumeDensity, setVolumeDensity] = useState(layer.volumeDensity ?? 1.4);
+  const [densityPower, setDensityPower] = useState(layer.densityPower ?? 1.2);
+  const [showBoundingBox, setShowBoundingBox] = useState(layer.showBoundingBox ?? true);
   const [script, setScript] = useState(layer.script || '');
 
   const latexHtml = renderKatexToString(buildLatexDisplay(layer));
@@ -52,6 +58,12 @@ export const LayerCard: React.FC<LayerCardProps> = ({
       pR: pR.trim(),
       pThetaC: pThetaC.trim(),
       pZ: pZ.trim(),
+      colorMap,
+      threshold,
+      coreIso,
+      volumeDensity,
+      densityPower,
+      showBoundingBox,
       script,
     };
     onUpdate(updated);
@@ -70,6 +82,12 @@ export const LayerCard: React.FC<LayerCardProps> = ({
     setPR(layer.pR || '');
     setPThetaC(layer.pThetaC || '');
     setPZ(layer.pZ || '');
+    setColorMap(layer.colorMap || 'thermal');
+    setThreshold(layer.threshold ?? 0.06);
+    setCoreIso(layer.coreIso ?? 0.75);
+    setVolumeDensity(layer.volumeDensity ?? 1.4);
+    setDensityPower(layer.densityPower ?? 1.2);
+    setShowBoundingBox(layer.showBoundingBox ?? true);
     setScript(layer.script || '');
     setIsEditing(false);
   };
@@ -90,6 +108,10 @@ export const LayerCard: React.FC<LayerCardProps> = ({
       case 'paramSph':
       case 'paramCyl':
         return 'border-amber-500/30 text-amber-300 bg-amber-500/10';
+      case 'density':
+      case 'densitySph':
+      case 'densityCyl':
+        return 'border-violet-500/40 text-violet-300 bg-violet-500/15';
       case 'script':
         return 'border-sky-500/30 text-sky-300 bg-sky-500/10';
       default:
@@ -100,7 +122,9 @@ export const LayerCard: React.FC<LayerCardProps> = ({
   return (
     <div
       className={`border rounded-xl bg-[#16161b] mb-2 overflow-hidden transition-all duration-150 ${
-        layer.visible ? 'border-white/[0.08] hover:border-white/[0.16] shadow-sm' : 'opacity-40 border-white/[0.04]'
+        layer.visible
+          ? 'border-white/[0.08] hover:border-white/[0.16] shadow-sm'
+          : 'opacity-40 border-white/[0.04]'
       } ${isEditing ? 'ring-1 ring-indigo-500/60 border-indigo-500/60' : ''}`}
     >
       {/* Header */}
@@ -187,17 +211,20 @@ export const LayerCard: React.FC<LayerCardProps> = ({
 
       {/* Inline Editing Form */}
       {isEditing && (
-        <div className="border-t border-white/[0.08] p-3 bg-[#121215] flex flex-col gap-2">
-          {/* Surface & Field Inputs */}
+        <div className="border-t border-white/[0.08] p-3 bg-[#121215] flex flex-col gap-2.5">
+          {/* Surface / Field / Density Formula Inputs */}
           {(layer.type === 'surface' ||
             layer.type === 'spherical' ||
             layer.type === 'cylindrical' ||
             layer.type === 'field' ||
             layer.type === 'fieldSph' ||
-            layer.type === 'fieldCyl') && (
+            layer.type === 'fieldCyl' ||
+            layer.type === 'density' ||
+            layer.type === 'densitySph' ||
+            layer.type === 'densityCyl') && (
             <div className="flex items-center gap-2">
-              <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400 w-12 shrink-0">
-                Formula
+              <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400 w-14 shrink-0 font-mono">
+                {layer.type.startsWith('density') ? 'V = ' : 'Formula'}
               </span>
               <input
                 type="text"
@@ -208,11 +235,100 @@ export const LayerCard: React.FC<LayerCardProps> = ({
             </div>
           )}
 
+          {/* Density Plot Specific Controls (Colormap & Threshold) */}
+          {(layer.type === 'density' ||
+            layer.type === 'densitySph' ||
+            layer.type === 'densityCyl') && (
+            <div className="flex flex-col gap-2.5 bg-[#18181e] p-2.5 rounded-xl border border-white/[0.06]">
+              <div className="flex items-center gap-2">
+                <span className="text-[10.5px] text-slate-400 w-16">Colormap:</span>
+                <div className="flex flex-wrap gap-1 flex-1">
+                  {['thermal', 'turbo', 'plasma', 'viridis', 'magma', 'coolwarm'].map((cmap) => (
+                    <button
+                      key={cmap}
+                      type="button"
+                      onClick={() => setColorMap(cmap)}
+                      className={`text-[10px] uppercase font-mono px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                        colorMap === cmap
+                          ? 'bg-violet-500/20 text-violet-300 border-violet-500/50 font-semibold'
+                          : 'bg-[#101014] text-slate-400 hover:text-slate-200 border-white/[0.08]'
+                      }`}
+                    >
+                      {cmap}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[10.5px] text-slate-400 w-16">Solid Core:</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={Math.round(coreIso * 100)}
+                  onChange={(e) => setCoreIso(parseInt(e.target.value) / 100)}
+                  className="flex-1 accent-violet-500 h-1.5 cursor-pointer rounded bg-[#101014]"
+                />
+                <span className="text-xs font-mono text-violet-300 w-10 text-right">
+                  {Math.round(coreIso * 100)}%
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[10.5px] text-slate-400 w-16">Cutoff:</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="60"
+                  value={Math.round(threshold * 100)}
+                  onChange={(e) => setThreshold(parseInt(e.target.value) / 100)}
+                  className="flex-1 accent-violet-500 h-1.5 cursor-pointer rounded bg-[#101014]"
+                />
+                <span className="text-xs font-mono text-violet-300 w-10 text-right">
+                  {Math.round(threshold * 100)}%
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[10.5px] text-slate-400 w-16">Density:</span>
+                <input
+                  type="range"
+                  min="3"
+                  max="30"
+                  value={Math.round(volumeDensity * 10)}
+                  onChange={(e) => setVolumeDensity(parseInt(e.target.value) / 10)}
+                  className="flex-1 accent-violet-500 h-1.5 cursor-pointer rounded bg-[#101014]"
+                />
+                <span className="text-xs font-mono text-violet-300 w-10 text-right">
+                  {volumeDensity.toFixed(1)}x
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[10.5px] text-slate-400">Bounding Cage:</span>
+                <button
+                  type="button"
+                  onClick={() => setShowBoundingBox(!showBoundingBox)}
+                  className={`text-[10px] font-mono px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                    showBoundingBox
+                      ? 'bg-violet-500/20 text-violet-300 border-violet-500/40'
+                      : 'bg-[#101014] text-slate-500 border-white/[0.08]'
+                  }`}
+                >
+                  {showBoundingBox ? 'Visible' : 'Hidden'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Cartesian Parametric */}
           {layer.type === 'param' && (
             <>
               <div className="flex items-center gap-2">
-                <span className="text-[10.5px] font-semibold text-slate-400 w-10 shrink-0 font-mono">x(t)</span>
+                <span className="text-[10.5px] font-semibold text-slate-400 w-10 shrink-0 font-mono">
+                  x(t)
+                </span>
                 <input
                   type="text"
                   value={px}
@@ -221,7 +337,9 @@ export const LayerCard: React.FC<LayerCardProps> = ({
                 />
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10.5px] font-semibold text-slate-400 w-10 shrink-0 font-mono">y(t)</span>
+                <span className="text-[10.5px] font-semibold text-slate-400 w-10 shrink-0 font-mono">
+                  y(t)
+                </span>
                 <input
                   type="text"
                   value={py}
@@ -230,7 +348,9 @@ export const LayerCard: React.FC<LayerCardProps> = ({
                 />
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10.5px] font-semibold text-slate-400 w-10 shrink-0 font-mono">z(t)</span>
+                <span className="text-[10.5px] font-semibold text-slate-400 w-10 shrink-0 font-mono">
+                  z(t)
+                </span>
                 <input
                   type="text"
                   value={pz}
@@ -245,7 +365,9 @@ export const LayerCard: React.FC<LayerCardProps> = ({
           {layer.type === 'paramSph' && (
             <>
               <div className="flex items-center gap-2">
-                <span className="text-[10.5px] font-semibold text-slate-400 w-10 shrink-0 font-mono">ρ(t)</span>
+                <span className="text-[10.5px] font-semibold text-slate-400 w-10 shrink-0 font-mono">
+                  ρ(t)
+                </span>
                 <input
                   type="text"
                   value={pRho}
@@ -254,7 +376,9 @@ export const LayerCard: React.FC<LayerCardProps> = ({
                 />
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10.5px] font-semibold text-slate-400 w-10 shrink-0 font-mono">θ(t)</span>
+                <span className="text-[10.5px] font-semibold text-slate-400 w-10 shrink-0 font-mono">
+                  θ(t)
+                </span>
                 <input
                   type="text"
                   value={pTheta}
@@ -263,7 +387,9 @@ export const LayerCard: React.FC<LayerCardProps> = ({
                 />
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10.5px] font-semibold text-slate-400 w-10 shrink-0 font-mono">φ(t)</span>
+                <span className="text-[10.5px] font-semibold text-slate-400 w-10 shrink-0 font-mono">
+                  φ(t)
+                </span>
                 <input
                   type="text"
                   value={pPhi}
@@ -278,7 +404,9 @@ export const LayerCard: React.FC<LayerCardProps> = ({
           {layer.type === 'paramCyl' && (
             <>
               <div className="flex items-center gap-2">
-                <span className="text-[10.5px] font-semibold text-slate-400 w-10 shrink-0 font-mono">r(t)</span>
+                <span className="text-[10.5px] font-semibold text-slate-400 w-10 shrink-0 font-mono">
+                  r(t)
+                </span>
                 <input
                   type="text"
                   value={pR}
@@ -287,7 +415,9 @@ export const LayerCard: React.FC<LayerCardProps> = ({
                 />
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10.5px] font-semibold text-slate-400 w-10 shrink-0 font-mono">θ(t)</span>
+                <span className="text-[10.5px] font-semibold text-slate-400 w-10 shrink-0 font-mono">
+                  θ(t)
+                </span>
                 <input
                   type="text"
                   value={pThetaC}
@@ -296,7 +426,9 @@ export const LayerCard: React.FC<LayerCardProps> = ({
                 />
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10.5px] font-semibold text-slate-400 w-10 shrink-0 font-mono">z(t)</span>
+                <span className="text-[10.5px] font-semibold text-slate-400 w-10 shrink-0 font-mono">
+                  z(t)
+                </span>
                 <input
                   type="text"
                   value={pZ}
@@ -310,7 +442,9 @@ export const LayerCard: React.FC<LayerCardProps> = ({
           {/* Script Editor */}
           {layer.type === 'script' && (
             <div className="flex flex-col gap-1.5">
-              <span className="text-[10.5px] font-semibold text-slate-400">Script Code (Syntax Highlighted):</span>
+              <span className="text-[10.5px] font-semibold text-slate-400">
+                Script Code (Syntax Highlighted):
+              </span>
               <ScriptCodeEditor
                 value={script}
                 onChange={setScript}
@@ -321,8 +455,8 @@ export const LayerCard: React.FC<LayerCardProps> = ({
 
           {/* Name label */}
           <div className="flex items-center gap-2">
-            <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400 w-12 shrink-0">
-              Name
+            <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400 w-14 shrink-0">
+              Label
             </span>
             <input
               type="text"
@@ -339,7 +473,7 @@ export const LayerCard: React.FC<LayerCardProps> = ({
               className="flex-1 py-1.5 px-3 flex items-center justify-center gap-1 text-xs font-semibold rounded-lg border border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 transition-colors cursor-pointer shadow-sm"
             >
               <Check className="w-3.5 h-3.5" />
-              Apply
+              Apply Changes
             </button>
             <button
               onClick={handleCancel}

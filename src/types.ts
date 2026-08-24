@@ -1,4 +1,4 @@
-export type MainTabType = 'surfaceplot' | 'vectorfield' | 'parametric' | 'script';
+export type MainTabType = 'surfaceplot' | 'densityplot' | 'vectorfield' | 'parametric' | 'script';
 
 export type SchemeType = 'cart' | 'sph' | 'cyl';
 
@@ -12,6 +12,9 @@ export type LayerType =
   | 'param'
   | 'paramSph'
   | 'paramCyl'
+  | 'density'
+  | 'densitySph'
+  | 'densityCyl'
   | 'script';
 
 export interface ParamItem {
@@ -31,7 +34,7 @@ export interface LayerItem {
   name: string;
   R: number;
   N: number;
-  // Surface / Field expressions
+  // Surface / Field / Density expressions
   eq?: string;
   // Cartesian Parametric
   px?: string;
@@ -45,6 +48,18 @@ export interface LayerItem {
   pR?: string;
   pThetaC?: string;
   pZ?: string;
+  // Density Field Specifics
+  colorMap?: string; // 'thermal' | 'turbo' | 'plasma' | 'viridis' | 'magma' | 'coolwarm' | 'custom'
+  threshold?: number; // 0 - 1 (min normalized density threshold)
+  pointSize?: number; // point/particle diameter
+  densityPower?: number; // 0.5 - 3.0 (falloff smoothness)
+  coreIso?: number; // 0.0 - 1.0 (solid isosurface core enhancement)
+  volumeDensity?: number; // 0.2 - 3.0 (overall volumetric density multiplier)
+  showBoundingBox?: boolean; // toggle wireframe bounding domain box
+  volumeResolution?: number; // grid resolution (e.g. 40, 48, 64)
+  calculatedMin?: number; // real computed min scalar value for colorbar
+  calculatedMax?: number; // real computed max scalar value for colorbar
+  densityMode?: 'cloud' | 'slices';
   // Script
   script?: string;
 }
@@ -56,7 +71,27 @@ export interface SceneSettings {
   colorTint: number; // 0 - 80
   showGrid: boolean;
   showAxes: boolean;
+  showTicks: boolean; // Coordinate ticks & numbers visibility
   wireframe: boolean;
+
+  // Axis Scaling (Math Axes X, Y, Z)
+  scaleX: number; // 0.1 - 3.0
+  scaleY: number; // 0.1 - 3.0
+  scaleZ: number; // 0.1 - 3.0
+
+  // Axis Min / Max Bounds
+  useCustomBounds: boolean;
+  xMin: number;
+  xMax: number;
+  yMin: number;
+  yMax: number;
+  zMin: number;
+  zMax: number;
+
+  // Linear vs Logarithmic scale toggles per axis
+  logScaleX: boolean;
+  logScaleY: boolean;
+  logScaleZ: boolean;
 }
 
 export interface StatusState {

@@ -19,6 +19,21 @@ plotSurface((x, y) => {
   const r = Math.sqrt(x*x + y*y) + 0.001;
   return (Math.sin(r) / r) * 3;
 });`,
+  densityDipole: `// Electric Dipole 3D Scalar Field (Density Particles)
+const N = 18;
+const q1 = [1.2, 0, 0], q2 = [-1.2, 0, 0];
+for (let x = -3; x <= 3; x += 6/N) {
+  for (let y = -3; y <= 3; y += 6/N) {
+    for (let z = -3; z <= 3; z += 6/N) {
+      const d1 = Math.hypot(x - q1[0], y - q1[1], z - q1[2]) + 0.1;
+      const d2 = Math.hypot(x - q2[0], y - q2[1], z - q2[2]) + 0.1;
+      const V = Math.abs(1/d1 - 1/d2);
+      if (V > 0.1) {
+        plot3d(x, y, z);
+      }
+    }
+  }
+}`,
   lissajous: `// 3D Lissajous Knot Curve
 plotCurve(t => [
   Math.sin(3*t + Math.PI/4),
