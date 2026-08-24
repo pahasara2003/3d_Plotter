@@ -21,6 +21,7 @@ import { FullScriptIDE } from './components/FullScriptIDE';
 export default function App() {
   const canvasRef = useRef<PlotCanvasRef>(null);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const [editingLayerId, setEditingLayerId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewModeType>('plot');
 
   // Time-Varying Animation State
@@ -104,6 +105,8 @@ export default function App() {
     message: 'Ready — 3D plotter active with Python script engine & time flow',
     isError: false,
   });
+
+  const editingLayer = editingLayerId !== null ? layers.find((l) => l.id === editingLayerId) || null : null;
 
   // Check if any active layers have time variable 't' or 'time'
   const hasTimeDependentLayers = layers.some((l) => {
@@ -239,6 +242,9 @@ export default function App() {
           setActiveScriptLayerId(null);
         }
       }
+      if (editingLayerId === id) {
+        setEditingLayerId(null);
+      }
       setStatus({
         message: `${filtered.length} plot layer${filtered.length !== 1 ? 's' : ''} remaining`,
         isError: false,
@@ -270,9 +276,36 @@ export default function App() {
       setActiveScriptCode(updated.script);
     }
     setStatus({
-      message: `Updated: ${updated.name}`,
+      message: `Updated plot: ${updated.name}`,
       isError: false,
     });
+  };
+
+  const handleStartEditLayer = (id: number) => {
+    const target = layers.find((l) => l.id === id);
+    if (!target) return;
+    setEditingLayerId(id);
+    setIsAddMenuOpen(true);
+
+    if (target.type === 'script') {
+      setActiveScriptLayerId(id);
+      if (target.script) {
+        setActiveScriptCode(target.script);
+      }
+    }
+
+    if (viewMode === 'script') {
+      setViewMode('plot');
+    }
+  };
+
+  const handleSaveEditedLayer = (updated: LayerItem) => {
+    handleUpdateLayer(updated);
+    setEditingLayerId(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingLayerId(null);
   };
 
   // Sync Python script updates from FullScriptIDE to the active layer (or create one)
@@ -283,7 +316,6 @@ export default function App() {
         prev.map((l) => (l.id === activeScriptLayerId ? { ...l, script: newCode } : l))
       );
     } else {
-      // Auto-create or prepare script layer if none selected
       const existingScript = layers.find((l) => l.type === 'script');
       if (existingScript) {
         setActiveScriptLayerId(existingScript.id);
@@ -307,7 +339,6 @@ export default function App() {
       handleSelectScriptLayer(scriptCodeOrId);
     } else if (typeof scriptCodeOrId === 'string') {
       setActiveScriptCode(scriptCodeOrId);
-      // Check if existing script layer
       const existingScript = layers.find((l) => l.type === 'script');
       if (existingScript) {
         setActiveScriptLayerId(existingScript.id);
@@ -315,7 +346,6 @@ export default function App() {
           prev.map((l) => (l.id === existingScript.id ? { ...l, script: scriptCodeOrId } : l))
         );
       } else {
-        // Create a new script layer
         handleAddLayer({
           type: 'script',
           name: 'Python Plot Script',
@@ -449,7 +479,15 @@ export default function App() {
         onLoadExample={handleLoadExample}
         layerCount={layers.length}
         isAddMenuOpen={isAddMenuOpen}
-        onToggleAddMenu={() => setIsAddMenuOpen((prev) => !prev)}
+        onToggleAddMenu={() => {
+          if (isAddMenuOpen) {
+            setIsAddMenuOpen(false);
+            setEditingLayerId(null);
+          } else {
+            setIsAddMenuOpen(true);
+            setEditingLayerId(null);
+          }
+        }}
         viewMode={viewMode}
         onChangeViewMode={setViewMode}
       />
@@ -466,8 +504,8 @@ export default function App() {
               onDelete={handleDeleteLayer}
               onDuplicate={handleDuplicateLayer}
               onUpdate={handleUpdateLayer}
-              onOpenFullIDE={handleOpenFullIDE}
-              onOpenSplitView={handleOpenSplitView}
+              onEditLayer={handleStartEditLayer}
+              editingLayerId={editingLayerId}
             />
 
             {/* Dynamic Variable Sliders */}
@@ -569,7 +607,10 @@ export default function App() {
             {/* Floating button to reopen Add Plot panel when closed */}
             {!isAddMenuOpen && (
               <button
-                onClick={() => setIsAddMenuOpen(true)}
+                onClick={() => {
+                  setEditingLayerId(null);
+                  setIsAddMenuOpen(true);
+                }}
                 className="absolute top-3 left-3 flex items-center gap-2 bg-[#141418]/90 hover:bg-indigo-600 text-slate-200 hover:text-white backdrop-blur border border-white/[0.12] hover:border-indigo-400/40 rounded-xl px-3.5 py-1.5 z-10 shadow-xl text-xs font-semibold transition-all cursor-pointer group"
                 title="Open Add New Plot Menu"
               >
@@ -582,15 +623,21 @@ export default function App() {
           </main>
         )}
 
-        {/* Right Sidebar: Dedicated Add New Plot Menu (Available in 'plot' mode) */}
+        {/* Right Sidebar: Dedicated Add New Plot / Change Plot Menu (Collapsible / Hideable) */}
         {viewMode === 'plot' && isAddMenuOpen && (
           <aside className="w-[450px] min-w-[380px] max-w-[500px] flex flex-col border-l border-white/[0.08] bg-[#121216] overflow-hidden shrink-0 z-10 shadow-2xl">
             <AddLayerPanel
               onAddLayer={handleAddLayer}
               nextColor={nextColor}
-              onClose={() => setIsAddMenuOpen(false)}
+              onClose={() => {
+                setIsAddMenuOpen(false);
+                setEditingLayerId(null);
+              }}
               onOpenFullIDE={handleOpenFullIDE}
               onOpenSplitView={handleOpenSplitView}
+              editingLayer={editingLayer}
+              onUpdateLayer={handleSaveEditedLayer}
+              onCancelEdit={handleCancelEdit}
             />
           </aside>
         )}

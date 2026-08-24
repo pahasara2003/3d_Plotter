@@ -9,8 +9,8 @@ interface LayerListProps {
   onDelete: (id: number) => void;
   onDuplicate: (id: number) => void;
   onUpdate: (layer: LayerItem) => void;
-  onOpenFullIDE?: (id: number) => void;
-  onOpenSplitView?: (id: number) => void;
+  onEditLayer?: (id: number) => void;
+  editingLayerId?: number | null;
 }
 
 export const LayerList: React.FC<LayerListProps> = ({
@@ -19,8 +19,8 @@ export const LayerList: React.FC<LayerListProps> = ({
   onDelete,
   onDuplicate,
   onUpdate,
-  onOpenFullIDE,
-  onOpenSplitView,
+  onEditLayer,
+  editingLayerId,
 }) => {
   return (
     <div className="flex-1 overflow-y-auto p-3.5 flex flex-col">
@@ -53,8 +53,8 @@ export const LayerList: React.FC<LayerListProps> = ({
               onDelete={onDelete}
               onDuplicate={onDuplicate}
               onUpdate={onUpdate}
-              onOpenFullIDE={onOpenFullIDE}
-              onOpenSplitView={onOpenSplitView}
+              onEditLayer={onEditLayer}
+              isEditing={editingLayerId === layer.id}
             />
           ))
         )}

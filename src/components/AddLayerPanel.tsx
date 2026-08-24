@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, Code2, X, Sparkles, Layers, Sliders, Activity, Box, Circle, Disc, Zap } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Code2, X, Sparkles, Layers, Sliders, Activity, Box, Circle, Disc, Zap, Edit3, Check } from 'lucide-react';
 import { MainTabType, SchemeType, LayerItem, LayerType, ShapeType } from '../types';
 import { PALETTE } from '../constants/presets';
 import { ScriptCodeEditor } from './ScriptCodeEditor';
@@ -10,6 +10,9 @@ interface AddLayerPanelProps {
   onClose?: () => void;
   onOpenFullIDE?: (draftScript?: string) => void;
   onOpenSplitView?: () => void;
+  editingLayer?: LayerItem | null;
+  onUpdateLayer?: (layer: LayerItem) => void;
+  onCancelEdit?: () => void;
 }
 
 export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
@@ -18,6 +21,9 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
   onClose,
   onOpenFullIDE,
   onOpenSplitView,
+  editingLayer,
+  onUpdateLayer,
+  onCancelEdit,
 }) => {
   const [mainTab, setMainTab] = useState<MainTabType>('surfaceplot');
   const [schemes, setSchemes] = useState<Record<MainTabType, SchemeType>>({
@@ -91,6 +97,91 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
   const [layerName, setLayerName] = useState('');
   const [rangeR, setRangeR] = useState(5);
   const [resolutionN, setResolutionN] = useState(45);
+
+  // Automatically populate all panel inputs when editingLayer changes
+  useEffect(() => {
+    if (!editingLayer) {
+      setLayerColor(nextColor || PALETTE[0]);
+      return;
+    }
+
+    const t = editingLayer.type;
+    let tab: MainTabType = 'surfaceplot';
+    let sch: SchemeType = 'cart';
+
+    if (t === 'surface' || t === 'spherical' || t === 'cylindrical') {
+      tab = 'surfaceplot';
+      sch = t === 'surface' ? 'cart' : t === 'spherical' ? 'sph' : 'cyl';
+      if (t === 'surface') setSurfEq(editingLayer.eq || '');
+      if (t === 'spherical') setSphEq(editingLayer.eq || '');
+      if (t === 'cylindrical') setCylEq(editingLayer.eq || '');
+    } else if (t === 'density' || t === 'densitySph' || t === 'densityCyl') {
+      tab = 'densityplot';
+      sch = t === 'density' ? 'cart' : t === 'densitySph' ? 'sph' : 'cyl';
+      if (t === 'density') setDensityEq(editingLayer.eq || '');
+      if (t === 'densitySph') setDensitySphEq(editingLayer.eq || '');
+      if (t === 'densityCyl') setDensityCylEq(editingLayer.eq || '');
+      if (editingLayer.colorMap) setDensityColormap(editingLayer.colorMap);
+      if (editingLayer.threshold !== undefined) setDensityThreshold(editingLayer.threshold);
+      if (editingLayer.coreIso !== undefined) setDensityCoreIso(editingLayer.coreIso);
+      if (editingLayer.volumeDensity !== undefined) setDensityMultiplier(editingLayer.volumeDensity);
+      if (editingLayer.densityPower !== undefined) setDensityPower(editingLayer.densityPower);
+      if (editingLayer.showBoundingBox !== undefined) setShowDensityBoundingBox(editingLayer.showBoundingBox);
+    } else if (t === 'field' || t === 'fieldSph' || t === 'fieldCyl') {
+      tab = 'vectorfield';
+      sch = t === 'field' ? 'cart' : t === 'fieldSph' ? 'sph' : 'cyl';
+      if (t === 'field') setFieldEq(editingLayer.eq || '');
+      if (t === 'fieldSph') setFieldSphEq(editingLayer.eq || '');
+      if (t === 'fieldCyl') setFieldCylEq(editingLayer.eq || '');
+      if (editingLayer.fieldDisplay) setFieldDisplay(editingLayer.fieldDisplay);
+      if (editingLayer.streamlineCount !== undefined) setStreamlineCount(editingLayer.streamlineCount);
+      if (editingLayer.showArrowHeads !== undefined) setShowArrowHeads(editingLayer.showArrowHeads);
+    } else if (t === 'param' || t === 'paramSph' || t === 'paramCyl') {
+      tab = 'parametric';
+      sch = t === 'param' ? 'cart' : t === 'paramSph' ? 'sph' : 'cyl';
+      if (t === 'param') {
+        setPx(editingLayer.px || '');
+        setPy(editingLayer.py || '');
+        setPz(editingLayer.pz || '');
+      }
+      if (t === 'paramSph') {
+        setPRho(editingLayer.pRho || '');
+        setPTheta(editingLayer.pTheta || '');
+        setPPhi(editingLayer.pPhi || '');
+      }
+      if (t === 'paramCyl') {
+        setPR(editingLayer.pR || '');
+        setPThetaC(editingLayer.pThetaC || '');
+        setPZ(editingLayer.pZ || '');
+      }
+    } else if (t === 'shape') {
+      tab = 'shapes';
+      if (editingLayer.shapeType) setShapeType(editingLayer.shapeType);
+      if (editingLayer.shapeRadius !== undefined) setShapeRadius(String(editingLayer.shapeRadius));
+      if (editingLayer.shapeRadius2 !== undefined) setShapeRadius2(String(editingLayer.shapeRadius2));
+      if (editingLayer.shapeRadius3 !== undefined) setShapeRadius3(String(editingLayer.shapeRadius3));
+      if (editingLayer.shapeWidth !== undefined) setShapeWidth(String(editingLayer.shapeWidth));
+      if (editingLayer.shapeHeight !== undefined) setShapeHeight(String(editingLayer.shapeHeight));
+      if (editingLayer.shapeDepth !== undefined) setShapeDepth(String(editingLayer.shapeDepth));
+      if (editingLayer.shapeCenterX !== undefined) setShapeCenterX(String(editingLayer.shapeCenterX));
+      if (editingLayer.shapeCenterY !== undefined) setShapeCenterY(String(editingLayer.shapeCenterY));
+      if (editingLayer.shapeCenterZ !== undefined) setShapeCenterZ(String(editingLayer.shapeCenterZ));
+      if (editingLayer.shapeAxis) setShapeAxis(editingLayer.shapeAxis);
+      if (editingLayer.shapeWireframe !== undefined) setShapeWireframe(editingLayer.shapeWireframe);
+      if (editingLayer.shapeOpacity !== undefined) setShapeOpacity(editingLayer.shapeOpacity);
+      if (editingLayer.shapeSegments !== undefined) setShapeSegments(editingLayer.shapeSegments);
+    } else if (t === 'script') {
+      tab = 'script';
+      if (editingLayer.script) setScript(editingLayer.script);
+    }
+
+    setMainTab(tab);
+    setSchemes((prev) => ({ ...prev, [tab]: sch }));
+    setLayerColor(editingLayer.color || nextColor || PALETTE[0]);
+    setLayerName(editingLayer.name || '');
+    if (editingLayer.R !== undefined) setRangeR(editingLayer.R);
+    if (editingLayer.N !== undefined) setResolutionN(editingLayer.N);
+  }, [editingLayer]);
 
   const curScheme = schemes[mainTab];
 
@@ -225,34 +316,68 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
       layerData.name = computedName || 'Custom Script Plot';
     }
 
-    onAddLayer(layerData);
-    setLayerName('');
+    if (editingLayer) {
+      const updatedLayer: LayerItem = {
+        ...editingLayer,
+        ...layerData,
+        id: editingLayer.id,
+        visible: editingLayer.visible,
+      };
+      onUpdateLayer?.(updatedLayer);
+    } else {
+      onAddLayer(layerData);
+      setLayerName('');
+    }
   };
 
   return (
     <div className="flex flex-col h-full bg-[#121216] border-l border-white/[0.08] shadow-2xl select-none overflow-hidden">
       {/* Panel Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08] bg-[#16161b]/90 shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
-            <Plus className="w-4 h-4" />
+        <div className="flex items-center gap-2.5">
+          <div
+            className={`w-7 h-7 rounded-lg flex items-center justify-center border shadow-sm ${
+              editingLayer
+                ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                : 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400'
+            }`}
+          >
+            {editingLayer ? <Edit3 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-slate-100">Add New Plot</h2>
-            <p className="text-[11px] text-slate-500">Surface, 3D Density, Vector, Basic Shapes, or Curves</p>
+            <h2 className="text-sm font-semibold text-slate-100">
+              {editingLayer ? 'Change Plot' : 'Add New Plot'}
+            </h2>
+            <p className="text-[11px] text-slate-400 truncate max-w-[280px]">
+              {editingLayer
+                ? `Editing: ${editingLayer.name}`
+                : 'Surface, 3D Density, Vector, Basic Shapes, or Curves'}
+            </p>
           </div>
         </div>
 
-        {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-white/[0.08] transition-colors cursor-pointer"
-            title="Hide Add Plots Menu"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
+        <div className="flex items-center gap-1">
+          {editingLayer && onCancelEdit && (
+            <button
+              type="button"
+              onClick={onCancelEdit}
+              className="text-[11px] font-medium text-slate-400 hover:text-slate-200 px-2 py-1 rounded-md hover:bg-white/[0.06] transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+          )}
+
+          {onClose && (
+            <button
+              type="button"
+              onClick={editingLayer && onCancelEdit ? onCancelEdit : onClose}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-white/[0.08] transition-colors cursor-pointer"
+              title="Close panel"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Main Tab Navigation Bar */}
@@ -1642,13 +1767,27 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
 
       {/* Fixed Bottom Action CTA */}
       <div className="p-3.5 border-t border-white/[0.08] bg-[#16161b]/95 shrink-0 flex items-center gap-2">
+        {editingLayer && onCancelEdit && (
+          <button
+            type="button"
+            onClick={onCancelEdit}
+            className="py-2.5 px-4 text-xs font-semibold rounded-xl bg-[#202028] hover:bg-[#282832] text-slate-300 hover:text-white border border-white/[0.1] transition-all cursor-pointer"
+          >
+            Cancel
+          </button>
+        )}
+
         <button
           type="button"
           onClick={handleAdd}
-          className="flex-1 py-2.5 px-4 text-xs font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-950/50"
+          className={`flex-1 py-2.5 px-4 text-xs font-semibold rounded-xl active:scale-[0.98] text-white transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg ${
+            editingLayer
+              ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-950/50'
+              : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-950/50'
+          }`}
         >
-          <Plus className="w-4 h-4" />
-          <span>Add Plot to Scene</span>
+          {editingLayer ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+          <span>{editingLayer ? 'Save Changes' : 'Add Plot to Scene'}</span>
         </button>
       </div>
     </div>
