@@ -498,28 +498,13 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
               </>
             )}
 
-            {/* Density Styling Controls (Colormap, Solid Core, Opacity Cutoff, Multiplier) */}
+            {/* Density Styling Controls (Solid Core, Opacity Cutoff, Density Multiplier, Falloff) */}
             <div className="flex flex-col gap-2.5 pt-2 border-t border-white/[0.06]">
               <div className="flex items-center justify-between">
                 <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
-                  Colormap
+                  Volumetric Rendering
                 </span>
-                <div className="flex flex-wrap gap-1">
-                  {['thermal', 'turbo', 'plasma', 'viridis', 'magma', 'coolwarm'].map((cmap) => (
-                    <button
-                      key={cmap}
-                      type="button"
-                      onClick={() => setDensityColormap(cmap)}
-                      className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded border transition-colors cursor-pointer ${
-                        densityColormap === cmap
-                          ? 'bg-violet-500/20 text-violet-300 border-violet-500/50 font-semibold'
-                          : 'bg-[#101014] text-slate-400 hover:text-slate-200 border-white/[0.08]'
-                      }`}
-                    >
-                      {cmap}
-                    </button>
-                  ))}
-                </div>
+                <span className="text-[10.5px] text-violet-300 font-mono">Intensity → Alpha (Opacity)</span>
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-1">
@@ -561,7 +546,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
 
                 <div className="flex flex-col gap-1">
                   <div className="flex justify-between text-[10.5px] text-slate-400">
-                    <span>Density Intensity</span>
+                    <span>Density Multiplier</span>
                     <span className="font-mono text-violet-300 font-semibold">
                       {densityMultiplier.toFixed(1)}x
                     </span>

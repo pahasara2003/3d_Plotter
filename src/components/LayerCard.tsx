@@ -235,28 +235,37 @@ export const LayerCard: React.FC<LayerCardProps> = ({
             </div>
           )}
 
-          {/* Density Plot Specific Controls (Colormap & Threshold) */}
+          {/* Density Plot Specific Controls (Intensity -> Alpha, Solid Core, Density Multiplier, Cutoff) */}
           {(layer.type === 'density' ||
             layer.type === 'densitySph' ||
             layer.type === 'densityCyl') && (
             <div className="flex flex-col gap-2.5 bg-[#18181e] p-2.5 rounded-xl border border-white/[0.06]">
               <div className="flex items-center gap-2">
-                <span className="text-[10.5px] text-slate-400 w-16">Colormap:</span>
-                <div className="flex flex-wrap gap-1 flex-1">
-                  {['thermal', 'turbo', 'plasma', 'viridis', 'magma', 'coolwarm'].map((cmap) => (
-                    <button
-                      key={cmap}
-                      type="button"
-                      onClick={() => setColorMap(cmap)}
-                      className={`text-[10px] uppercase font-mono px-2 py-0.5 rounded border transition-colors cursor-pointer ${
-                        colorMap === cmap
-                          ? 'bg-violet-500/20 text-violet-300 border-violet-500/50 font-semibold'
-                          : 'bg-[#101014] text-slate-400 hover:text-slate-200 border-white/[0.08]'
-                      }`}
-                    >
-                      {cmap}
-                    </button>
-                  ))}
+                <span className="text-[10.5px] text-slate-400 w-16">Plot Color:</span>
+                <div className="flex items-center gap-1.5 flex-1">
+                  <input
+                    type="color"
+                    value={layer.color}
+                    onChange={(e) => onUpdate({ ...layer, color: e.target.value })}
+                    className="w-5 h-5 rounded border border-white/20 p-0 bg-[#111114] cursor-pointer"
+                    title="Choose plot color"
+                  />
+                  <div className="flex items-center gap-1">
+                    {['#9d8fff', '#60b4ff', '#ff6b6b', '#4ecca3', '#ffbe53', '#ff84e8'].map((col) => (
+                      <button
+                        key={col}
+                        type="button"
+                        onClick={() => onUpdate({ ...layer, color: col })}
+                        style={{ backgroundColor: col }}
+                        className={`w-4 h-4 rounded-full border transition-transform cursor-pointer ${
+                          layer.color.toLowerCase() === col.toLowerCase()
+                            ? 'scale-110 border-white ring-1 ring-white/50'
+                            : 'border-black/30 hover:scale-105'
+                        }`}
+                        title={col}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
 

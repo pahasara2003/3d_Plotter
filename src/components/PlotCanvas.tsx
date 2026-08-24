@@ -524,48 +524,51 @@ export const PlotCanvas = forwardRef<PlotCanvasRef, PlotCanvasProps>(
           </div>
         </div>
 
-        {/* Scientific Volumetric Density Colormap Legend (ParaView style) */}
+        {/* Density Plots Intensity-to-Alpha Legend */}
         {layers.filter(
           (l) =>
             l.visible &&
             (l.type === 'density' || l.type === 'densitySph' || l.type === 'densityCyl')
-        ).map((dl) => {
+        ).map((dl, idx) => {
           const minVal = dl.calculatedMin ?? 0;
           const maxVal = dl.calculatedMax ?? 1;
-          const cmap = dl.colorMap || 'thermal';
-
-          let gradient = 'linear-gradient(to top, #050508 0%, #b30d00 30%, #ff8000 60%, #fff233 85%, #ffffff 100%)';
-          if (cmap === 'turbo') {
-            gradient = 'linear-gradient(to top, #30123b, #4145ab, #28bbec, #62fc38, #f8c932, #e03b13, #7a0403)';
-          } else if (cmap === 'plasma') {
-            gradient = 'linear-gradient(to top, #0d0887, #6a00a8, #b12a90, #e16462, #fca636, #f0f921)';
-          } else if (cmap === 'viridis') {
-            gradient = 'linear-gradient(to top, #440154, #3b528b, #21908d, #5dc863, #fde725)';
-          } else if (cmap === 'magma') {
-            gradient = 'linear-gradient(to top, #000004, #51127c, #b73779, #fb8761, #fcfdbf)';
-          } else if (cmap === 'coolwarm') {
-            gradient = 'linear-gradient(to top, #3b4cc0, #8cb2e9, #ddd, #f49a7b, #b40426)';
-          }
+          const plotColor = dl.color || '#9d8fff';
 
           return (
             <div
               key={dl.id}
-              className="absolute top-14 right-3 pointer-events-none bg-[#121216]/90 backdrop-blur border border-white/[0.1] rounded-lg p-2 flex flex-col items-center select-none shadow-lg"
+              style={{ top: `${56 + idx * 165}px` }}
+              className="absolute right-3 pointer-events-none bg-[#121216]/90 backdrop-blur border border-white/[0.1] rounded-lg p-2 flex flex-col items-center select-none shadow-lg z-10"
             >
-              <span className="text-[10px] uppercase font-mono tracking-wider text-slate-300 font-semibold mb-1.5">
-                density
-              </span>
-              <div className="flex items-stretch gap-1.5 h-36">
+              <div className="flex items-center gap-1.5 mb-1.5 max-w-[120px]">
                 <div
-                  className="w-4 rounded-sm border border-white/20 shadow-inner"
-                  style={{ background: gradient }}
+                  className="w-2.5 h-2.5 rounded-full shrink-0 border border-white/30"
+                  style={{ backgroundColor: plotColor }}
                 />
-                <div className="flex flex-col justify-between text-[9.5px] font-mono text-slate-300">
-                  <span>{maxVal >= 100 ? maxVal.toFixed(1) : maxVal.toFixed(3)}</span>
-                  <span>{((maxVal + minVal) * 0.75).toFixed(2)}</span>
-                  <span>{((maxVal + minVal) * 0.5).toFixed(2)}</span>
-                  <span>{((maxVal + minVal) * 0.25).toFixed(2)}</span>
-                  <span>{minVal >= 100 ? minVal.toFixed(1) : minVal.toFixed(3)}</span>
+                <span
+                  className="text-[9.5px] font-mono tracking-wide text-slate-200 font-semibold truncate"
+                  title={dl.name}
+                >
+                  {dl.name}
+                </span>
+              </div>
+              <div className="flex items-stretch gap-1.5 h-28">
+                <div className="w-3.5 rounded-sm border border-white/20 relative overflow-hidden bg-[#0d0d10]">
+                  <div
+                    className="absolute inset-0 rounded-sm"
+                    style={{
+                      background: `linear-gradient(to top, rgba(0,0,0,0) 0%, ${plotColor} 100%)`,
+                    }}
+                  />
+                </div>
+                <div className="flex flex-col justify-between text-[9px] font-mono text-slate-300">
+                  <span className="text-slate-100 font-medium">
+                    {maxVal >= 100 ? maxVal.toFixed(1) : maxVal.toFixed(2)} (100% α)
+                  </span>
+                  <span>{((maxVal + minVal) * 0.5).toFixed(2)} (50% α)</span>
+                  <span className="text-slate-400">
+                    {minVal >= 100 ? minVal.toFixed(1) : minVal.toFixed(2)} (0% α)
+                  </span>
                 </div>
               </div>
             </div>

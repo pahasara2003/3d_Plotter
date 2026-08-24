@@ -199,7 +199,6 @@ uniform float u_opacity;
 uniform float u_densityPower;
 uniform float u_coreIso;
 uniform float u_densityMultiplier;
-uniform int u_colormap;
 uniform vec3 u_baseColor;
 uniform int u_steps;
 uniform float u_resolution;
@@ -215,54 +214,6 @@ vec2 hitBox(vec3 orig, vec3 dir, vec3 bMin, vec3 bMax) {
   float tNear = max(max(tmin.x, tmin.y), tmin.z);
   float tFar = min(min(tmax.x, tmax.y), tmax.z);
   return vec2(tNear, tFar);
-}
-
-vec3 getColormapColor(float t, int cmap, vec3 base) {
-  t = clamp(t, 0.0, 1.0);
-  if (cmap == 0) {
-    // Thermal / AFMHot: Black -> Red -> Orange -> Yellow -> White (as in scientific density plots)
-    if (t < 0.25) {
-      return mix(vec3(0.02, 0.02, 0.03), vec3(0.72, 0.08, 0.02), t / 0.25);
-    } else if (t < 0.55) {
-      return mix(vec3(0.72, 0.08, 0.02), vec3(1.0, 0.55, 0.05), (t - 0.25) / 0.30);
-    } else if (t < 0.85) {
-      return mix(vec3(1.0, 0.55, 0.05), vec3(1.0, 0.95, 0.25), (t - 0.55) / 0.30);
-    } else {
-      return mix(vec3(1.0, 0.95, 0.25), vec3(1.0, 1.0, 1.0), (t - 0.85) / 0.15);
-    }
-  } else if (cmap == 1) {
-    // Turbo
-    if (t < 0.2) return mix(vec3(0.188, 0.07, 0.231), vec3(0.274, 0.384, 0.847), t / 0.2);
-    else if (t < 0.4) return mix(vec3(0.274, 0.384, 0.847), vec3(0.102, 0.894, 0.714), (t - 0.2) / 0.2);
-    else if (t < 0.6) return mix(vec3(0.102, 0.894, 0.714), vec3(0.635, 0.988, 0.235), (t - 0.4) / 0.2);
-    else if (t < 0.8) return mix(vec3(0.635, 0.988, 0.235), vec3(0.984, 0.502, 0.133), (t - 0.6) / 0.2);
-    else return mix(vec3(0.984, 0.502, 0.133), vec3(0.478, 0.015, 0.012), (t - 0.8) / 0.2);
-  } else if (cmap == 2) {
-    // Plasma
-    if (t < 0.25) return mix(vec3(0.05, 0.03, 0.53), vec3(0.41, 0.0, 0.66), t / 0.25);
-    else if (t < 0.5) return mix(vec3(0.41, 0.0, 0.66), vec3(0.69, 0.16, 0.56), (t - 0.25) / 0.25);
-    else if (t < 0.75) return mix(vec3(0.69, 0.16, 0.56), vec3(0.88, 0.39, 0.38), (t - 0.5) / 0.25);
-    else return mix(vec3(0.88, 0.39, 0.38), vec3(0.94, 0.97, 0.13), (t - 0.75) / 0.25);
-  } else if (cmap == 3) {
-    // Viridis
-    if (t < 0.25) return mix(vec3(0.267, 0.004, 0.329), vec3(0.231, 0.322, 0.545), t / 0.25);
-    else if (t < 0.5) return mix(vec3(0.231, 0.322, 0.545), vec3(0.129, 0.569, 0.549), (t - 0.25) / 0.25);
-    else if (t < 0.75) return mix(vec3(0.129, 0.569, 0.549), vec3(0.369, 0.788, 0.384), (t - 0.5) / 0.25);
-    else return mix(vec3(0.369, 0.788, 0.384), vec3(0.992, 0.906, 0.145), (t - 0.75) / 0.25);
-  } else if (cmap == 4) {
-    // Magma
-    if (t < 0.33) return mix(vec3(0.0, 0.0, 0.015), vec3(0.318, 0.07, 0.486), t / 0.33);
-    else if (t < 0.66) return mix(vec3(0.318, 0.07, 0.486), vec3(0.718, 0.216, 0.475), (t - 0.33) / 0.33);
-    else return mix(vec3(0.718, 0.216, 0.475), vec3(0.988, 0.992, 0.749), (t - 0.66) / 0.34);
-  } else if (cmap == 5) {
-    // Coolwarm
-    if (t < 0.5) return mix(vec3(0.23, 0.3, 0.75), vec3(0.86, 0.86, 0.86), t / 0.5);
-    else return mix(vec3(0.86, 0.86, 0.86), vec3(0.7, 0.015, 0.15), (t - 0.5) / 0.5);
-  } else {
-    // Custom tint
-    if (t < 0.5) return mix(vec3(0.06, 0.06, 0.09), base, t * 2.0);
-    else return mix(base, vec3(1.0, 1.0, 1.0), (t - 0.5) * 1.5);
-  }
 }
 
 vec3 sampleNormal(vec3 uvw, float stepOffset) {
@@ -302,23 +253,23 @@ void main() {
 
     if (d > u_threshold) {
       float normD = (d - u_threshold) / max(0.001, 1.0 - u_threshold);
+      // Intensity modulates opacity (alpha) directly with density falloff
       float s = pow(normD, u_densityPower);
 
-      vec3 col = getColormapColor(d, u_colormap, u_baseColor);
-
-      // Smooth 3D surface shading with normal gradients
+      // Single chosen color per plot with directional & ambient 3D shading
       vec3 normal = sampleNormal(uvw, invRes * 1.5);
       float diff = max(dot(normal, lightDir), 0.0);
-      float hemi = normal.y * 0.2 + 0.8;
-      vec3 litColor = col * (0.4 + 0.6 * diff * hemi);
+      float hemi = normal.y * 0.25 + 0.75;
+      vec3 litColor = u_baseColor * (0.45 + 0.55 * diff * hemi);
 
-      // Solid core isosurface enhancement
-      if (u_coreIso > 0.01 && d > 0.38) {
-        float coreT = smoothstep(0.38, 0.80, d) * u_coreIso;
+      // Solid core isosurface enhancement with specular gloss and inner brightness
+      if (u_coreIso > 0.01 && d > 0.35) {
+        float coreT = smoothstep(0.35, 0.80, d) * u_coreIso;
         vec3 h = normalize(lightDir - rayDir);
-        float spec = pow(max(dot(normal, h), 0.0), 20.0) * 0.45;
-        litColor = mix(litColor, col * 0.95 + vec3(spec), coreT * 0.85);
-        s = mix(s, 1.0, coreT * 0.65);
+        float spec = pow(max(dot(normal, h), 0.0), 20.0) * 0.5;
+        vec3 coreColor = mix(litColor, u_baseColor * 1.25 + vec3(spec), coreT * 0.9);
+        litColor = mix(litColor, coreColor, coreT);
+        s = mix(s, 1.0, coreT * 0.7);
       }
 
       float alpha = s * u_opacity * stepLen * u_densityMultiplier * 3.5;
@@ -471,8 +422,7 @@ export function buildDensityPlotObject(
     const coreIso = layer.coreIso ?? 0.75;
     const volumeDensity = layer.volumeDensity ?? 1.4;
     const opacity = (settings.surfaceOpacity / 100) * 0.95;
-    const colormapIdx = getColormapIndex(layer.colorMap || 'thermal');
-    const baseColor = new THREE.Color(layer.color);
+    const baseColor = new THREE.Color(layer.color || '#9d8fff');
 
     const grp = new THREE.Group();
 
@@ -490,7 +440,6 @@ export function buildDensityPlotObject(
         u_densityPower: { value: densityPower },
         u_coreIso: { value: coreIso },
         u_densityMultiplier: { value: volumeDensity },
-        u_colormap: { value: colormapIdx },
         u_baseColor: { value: new THREE.Vector3(baseColor.r, baseColor.g, baseColor.b) },
         u_steps: { value: 140 },
         u_resolution: { value: Ngrid },
