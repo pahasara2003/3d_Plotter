@@ -3,6 +3,7 @@ import { Plus, Code2, X, Sparkles, Layers, Sliders, Activity, Box, Circle, Disc,
 import { MainTabType, SchemeType, LayerItem, LayerType, ShapeType } from '../types';
 import { PALETTE } from '../constants/presets';
 import { ScriptCodeEditor } from './ScriptCodeEditor';
+import { VisualMathField } from './VisualMathField';
 
 interface AddLayerPanelProps {
   onAddLayer: (layer: Omit<LayerItem, 'id' | 'visible'>) => void;
@@ -448,7 +449,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
 
         {/* 1. SURFACE PLOT INPUTS */}
         {mainTab === 'surfaceplot' && (
-          <div className="flex flex-col gap-2.5 bg-[#16161b] p-3.5 rounded-xl border border-white/[0.08]">
+          <div className="flex flex-col gap-3 bg-[#16161b] p-3.5 rounded-xl border border-white/[0.08]">
             {curScheme === 'cart' && (
               <>
                 <div className="flex items-center justify-between">
@@ -457,11 +458,10 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                   </span>
                   <span className="text-[10px] text-slate-500">Cartesian Surface</span>
                 </div>
-                <input
-                  type="text"
+                <VisualMathField
                   value={surfEq}
-                  onChange={(e) => setSurfEq(e.target.value)}
-                  className="w-full font-mono text-sm px-3 py-2 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                  onChange={setSurfEq}
+                  prefixLabel="z ="
                   placeholder="sin(sqrt(x^2+y^2))"
                 />
                 <div className="flex flex-wrap gap-1.5 pt-1">
@@ -493,11 +493,10 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                   </span>
                   <span className="text-[10px] text-slate-500">Spherical Surface</span>
                 </div>
-                <input
-                  type="text"
+                <VisualMathField
                   value={sphEq}
-                  onChange={(e) => setSphEq(e.target.value)}
-                  className="w-full font-mono text-sm px-3 py-2 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                  onChange={setSphEq}
+                  prefixLabel="ρ ="
                   placeholder="2"
                 />
                 <div className="flex flex-wrap gap-1.5 pt-1">
@@ -528,11 +527,10 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                   </span>
                   <span className="text-[10px] text-slate-500">Cylindrical Surface</span>
                 </div>
-                <input
-                  type="text"
+                <VisualMathField
                   value={cylEq}
-                  onChange={(e) => setCylEq(e.target.value)}
-                  className="w-full font-mono text-sm px-3 py-2 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                  onChange={setCylEq}
+                  prefixLabel="r ="
                   placeholder="1"
                 />
                 <div className="flex flex-wrap gap-1.5 pt-1">
@@ -568,12 +566,11 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                   </span>
                   <span className="text-[10px] text-violet-400 font-mono">Volumetric Density</span>
                 </div>
-                <input
-                  type="text"
+                <VisualMathField
                   value={densityEq}
-                  onChange={(e) => setDensityEq(e.target.value)}
-                  className="w-full font-mono text-sm px-3 py-2 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
-                  placeholder="1/sqrt((x-1)^2+y^2+z^2+0.1) - 1/sqrt((x+1)^2+y^2+z^2+0.1)"
+                  onChange={setDensityEq}
+                  prefixLabel="V ="
+                  placeholder="exp(-sqrt(x^2+y^2+z^2)*0.8) * abs(2*z^2 - x^2 - y^2)^1.2"
                 />
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {[
@@ -623,11 +620,10 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                   </span>
                   <span className="text-[10px] text-violet-400 font-mono">Continuous Volume</span>
                 </div>
-                <input
-                  type="text"
+                <VisualMathField
                   value={densitySphEq}
-                  onChange={(e) => setDensitySphEq(e.target.value)}
-                  className="w-full font-mono text-sm px-3 py-2 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                  onChange={setDensitySphEq}
+                  prefixLabel="V ="
                   placeholder="rho^2 * exp(-rho/1.5) * abs(3*cos(phi)^2 - 1)"
                 />
                 <div className="flex flex-wrap gap-1.5 pt-1">
@@ -658,11 +654,10 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                   </span>
                   <span className="text-[10px] text-violet-400 font-mono">Continuous Volume</span>
                 </div>
-                <input
-                  type="text"
+                <VisualMathField
                   value={densityCylEq}
-                  onChange={(e) => setDensityCylEq(e.target.value)}
-                  className="w-full font-mono text-sm px-3 py-2 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                  onChange={setDensityCylEq}
+                  prefixLabel="V ="
                   placeholder="exp(-(r^2+z^2)/4) * abs(cos(2*theta))"
                 />
                 <div className="flex flex-wrap gap-1.5 pt-1">
@@ -787,7 +782,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
 
         {/* 3. VECTOR FIELD INPUTS */}
         {mainTab === 'vectorfield' && (
-          <div className="flex flex-col gap-2.5 bg-[#16161b] p-3.5 rounded-xl border border-white/[0.08]">
+          <div className="flex flex-col gap-3 bg-[#16161b] p-3.5 rounded-xl border border-white/[0.08]">
             {curScheme === 'cart' && (
               <>
                 <div className="flex items-center justify-between">
@@ -796,11 +791,10 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                   </span>
                   <span className="text-[10px] text-slate-500">Cartesian Vector Field</span>
                 </div>
-                <input
-                  type="text"
+                <VisualMathField
                   value={fieldEq}
-                  onChange={(e) => setFieldEq(e.target.value)}
-                  className="w-full font-mono text-sm px-3 py-2 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                  onChange={setFieldEq}
+                  prefixLabel="F ="
                   placeholder="[-y, x, 0.3]"
                 />
                 <div className="flex flex-wrap gap-1.5 pt-1">
@@ -832,11 +826,10 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                   </span>
                   <span className="text-[10px] text-slate-500">Spherical Vector Field</span>
                 </div>
-                <input
-                  type="text"
+                <VisualMathField
                   value={fieldSphEq}
-                  onChange={(e) => setFieldSphEq(e.target.value)}
-                  className="w-full font-mono text-sm px-3 py-2 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                  onChange={setFieldSphEq}
+                  prefixLabel="F_sph ="
                   placeholder="[0, 1, 0]"
                 />
                 <div className="flex flex-wrap gap-1.5 pt-1">
@@ -866,11 +859,10 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                   </span>
                   <span className="text-[10px] text-slate-500">Cylindrical Vector Field</span>
                 </div>
-                <input
-                  type="text"
+                <VisualMathField
                   value={fieldCylEq}
-                  onChange={(e) => setFieldCylEq(e.target.value)}
-                  className="w-full font-mono text-sm px-3 py-2 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                  onChange={setFieldCylEq}
+                  prefixLabel="F_cyl ="
                   placeholder="[0, 1, 0.2]"
                 />
                 <div className="flex flex-wrap gap-1.5 pt-1">
@@ -976,7 +968,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
 
         {/* 4. PARAMETRIC CURVE INPUTS */}
         {mainTab === 'parametric' && (
-          <div className="flex flex-col gap-2.5 bg-[#16161b] p-3.5 rounded-xl border border-white/[0.08]">
+          <div className="flex flex-col gap-3 bg-[#16161b] p-3.5 rounded-xl border border-white/[0.08]">
             {curScheme === 'cart' && (
               <>
                 <div className="flex items-center justify-between">
@@ -986,36 +978,27 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                   <span className="text-[10px] text-slate-500">Cartesian Space Curve</span>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-slate-400 w-10 shrink-0">x(t) =</span>
-                    <input
-                      type="text"
-                      value={px}
-                      onChange={(e) => setPx(e.target.value)}
-                      placeholder="cos(t)"
-                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-slate-400 w-10 shrink-0">y(t) =</span>
-                    <input
-                      type="text"
-                      value={py}
-                      onChange={(e) => setPy(e.target.value)}
-                      placeholder="sin(t)"
-                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-slate-400 w-10 shrink-0">z(t) =</span>
-                    <input
-                      type="text"
-                      value={pz}
-                      onChange={(e) => setPz(e.target.value)}
-                      placeholder="t/5"
-                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
-                    />
-                  </div>
+                  <VisualMathField
+                    value={px}
+                    onChange={setPx}
+                    prefixLabel="x(t) ="
+                    placeholder="cos(t)"
+                    showToolbar={false}
+                  />
+                  <VisualMathField
+                    value={py}
+                    onChange={setPy}
+                    prefixLabel="y(t) ="
+                    placeholder="sin(t)"
+                    showToolbar={false}
+                  />
+                  <VisualMathField
+                    value={pz}
+                    onChange={setPz}
+                    prefixLabel="z(t) ="
+                    placeholder="t/5"
+                    showToolbar={true}
+                  />
                 </div>
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {[
@@ -1050,36 +1033,27 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                   <span className="text-[10px] text-slate-500">Spherical Curve</span>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-slate-400 w-10 shrink-0">ρ(t) =</span>
-                    <input
-                      type="text"
-                      value={pRho}
-                      onChange={(e) => setPRho(e.target.value)}
-                      placeholder="2"
-                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-slate-400 w-10 shrink-0">θ(t) =</span>
-                    <input
-                      type="text"
-                      value={pTheta}
-                      onChange={(e) => setPTheta(e.target.value)}
-                      placeholder="t"
-                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-slate-400 w-10 shrink-0">φ(t) =</span>
-                    <input
-                      type="text"
-                      value={pPhi}
-                      onChange={(e) => setPPhi(e.target.value)}
-                      placeholder="PI/2+sin(t*2)*0.4"
-                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
-                    />
-                  </div>
+                  <VisualMathField
+                    value={pRho}
+                    onChange={setPRho}
+                    prefixLabel="ρ(t) ="
+                    placeholder="2"
+                    showToolbar={false}
+                  />
+                  <VisualMathField
+                    value={pTheta}
+                    onChange={setPTheta}
+                    prefixLabel="θ(t) ="
+                    placeholder="t"
+                    showToolbar={false}
+                  />
+                  <VisualMathField
+                    value={pPhi}
+                    onChange={setPPhi}
+                    prefixLabel="φ(t) ="
+                    placeholder="PI/2+sin(t*2)*0.4"
+                    showToolbar={true}
+                  />
                 </div>
               </>
             )}
@@ -1093,36 +1067,27 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                   <span className="text-[10px] text-slate-500">Cylindrical Curve</span>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-slate-400 w-10 shrink-0">r(t) =</span>
-                    <input
-                      type="text"
-                      value={pR}
-                      onChange={(e) => setPR(e.target.value)}
-                      placeholder="1"
-                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-slate-400 w-10 shrink-0">θ(t) =</span>
-                    <input
-                      type="text"
-                      value={pThetaC}
-                      onChange={(e) => setPThetaC(e.target.value)}
-                      placeholder="t"
-                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-slate-400 w-10 shrink-0">z(t) =</span>
-                    <input
-                      type="text"
-                      value={pZ}
-                      onChange={(e) => setPZ(e.target.value)}
-                      placeholder="t/5"
-                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
-                    />
-                  </div>
+                  <VisualMathField
+                    value={pR}
+                    onChange={setPR}
+                    prefixLabel="r(t) ="
+                    placeholder="1"
+                    showToolbar={false}
+                  />
+                  <VisualMathField
+                    value={pThetaC}
+                    onChange={setPThetaC}
+                    prefixLabel="θ(t) ="
+                    placeholder="t"
+                    showToolbar={false}
+                  />
+                  <VisualMathField
+                    value={pZ}
+                    onChange={setPZ}
+                    prefixLabel="z(t) ="
+                    placeholder="t/5"
+                    showToolbar={true}
+                  />
                 </div>
               </>
             )}
@@ -1590,36 +1555,27 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
               </div>
 
               <div className="grid grid-cols-3 gap-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-mono text-slate-400">x₀:</span>
-                  <input
-                    type="text"
-                    value={shapeCenterX}
-                    onChange={(e) => setShapeCenterX(e.target.value)}
-                    placeholder="0"
-                    className="w-full font-mono text-xs px-2 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
-                  />
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-mono text-slate-400">y₀:</span>
-                  <input
-                    type="text"
-                    value={shapeCenterY}
-                    onChange={(e) => setShapeCenterY(e.target.value)}
-                    placeholder="0"
-                    className="w-full font-mono text-xs px-2 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
-                  />
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-mono text-slate-400">z₀:</span>
-                  <input
-                    type="text"
-                    value={shapeCenterZ}
-                    onChange={(e) => setShapeCenterZ(e.target.value)}
-                    placeholder="0"
-                    className="w-full font-mono text-xs px-2 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
-                  />
-                </div>
+                <VisualMathField
+                  value={shapeCenterX}
+                  onChange={setShapeCenterX}
+                  prefixLabel="x₀ ="
+                  placeholder="0"
+                  showToolbar={false}
+                />
+                <VisualMathField
+                  value={shapeCenterY}
+                  onChange={setShapeCenterY}
+                  prefixLabel="y₀ ="
+                  placeholder="0"
+                  showToolbar={false}
+                />
+                <VisualMathField
+                  value={shapeCenterZ}
+                  onChange={setShapeCenterZ}
+                  prefixLabel="z₀ ="
+                  placeholder="0"
+                  showToolbar={false}
+                />
               </div>
             </div>
 
