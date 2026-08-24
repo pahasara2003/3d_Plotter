@@ -55,6 +55,7 @@ export function typeLabel(t: string): string {
     density: 'density 3d',
     densitySph: 'density·sph',
     densityCyl: 'density·cyl',
+    shape: 'basic shape',
     script: 'script',
   };
   return map[t] || t;
@@ -79,6 +80,18 @@ export function buildLatexDisplay(l: LayerItem): string {
   if (l.type === 'density') return `V(x,y,z) = ${toLatex(l.eq)}`;
   if (l.type === 'densitySph') return `V(\\rho,\\theta,\\phi) = ${toLatex(l.eq)}`;
   if (l.type === 'densityCyl') return `V(r,\\theta,z) = ${toLatex(l.eq)}`;
+  if (l.type === 'shape') {
+    const st = l.shapeType || 'sphere';
+    const cStr = `(${l.shapeCenterX ?? 0}, ${l.shapeCenterY ?? 0}, ${l.shapeCenterZ ?? 0})`;
+    if (st === 'sphere') return `\\text{Sphere: } R=${toLatex(String(l.shapeRadius ?? 2))},\\; \\mathbf{c}=${cStr}`;
+    if (st === 'cylinder') return `\\text{Cylinder: } r=${toLatex(String(l.shapeRadius ?? 1.5))},\\; h=${toLatex(String(l.shapeHeight ?? 4))}`;
+    if (st === 'cube') return `\\text{Box: } ${toLatex(String(l.shapeWidth ?? 3))}\\times${toLatex(String(l.shapeHeight ?? 3))}\\times${toLatex(String(l.shapeDepth ?? 3))}`;
+    if (st === 'cone') return `\\text{Cone: } r=${toLatex(String(l.shapeRadius ?? 2))},\\; h=${toLatex(String(l.shapeHeight ?? 3.5))}`;
+    if (st === 'torus') return `\\text{Torus: } R=${toLatex(String(l.shapeRadius ?? 2.5))},\\; r=${toLatex(String(l.shapeRadius2 ?? 0.6))}`;
+    if (st === 'plane') return `\\text{Plane: } ${toLatex(String(l.shapeWidth ?? 6))}\\times${toLatex(String(l.shapeHeight ?? 6))}`;
+    if (st === 'ellipsoid') return `\\text{Ellipsoid: } (${toLatex(String(l.shapeRadius ?? 2))}, ${toLatex(String(l.shapeRadius2 ?? 1.5))}, ${toLatex(String(l.shapeRadius3 ?? 1))})`;
+    return `\\text{Shape: ${st}}`;
+  }
   if (l.type === 'script') return '\\texttt{script}';
   return '';
 }
@@ -127,7 +140,204 @@ export function getLayerExprs(l: LayerItem): string[] {
   if (l.type === 'paramCyl') {
     return [l.pR || '', l.pThetaC || '', l.pZ || ''].filter(Boolean);
   }
+  if (l.type === 'shape') {
+    const exprs: string[] = [];
+    const pushIfStr = (val?: number | string) => {
+      if (typeof val === 'string' && isNaN(Number(val)) && val.trim() !== '') {
+        exprs.push(val.trim());
+      }
+    };
+    pushIfStr(l.shapeRadius);
+    pushIfStr(l.shapeRadius2);
+    pushIfStr(l.shapeRadius3);
+    pushIfStr(l.shapeWidth);
+    pushIfStr(l.shapeHeight);
+    pushIfStr(l.shapeDepth);
+    pushIfStr(l.shapeCenterX);
+    pushIfStr(l.shapeCenterY);
+    pushIfStr(l.shapeCenterZ);
+    return exprs;
+  }
   return [];
+}
+
+export type FastEvalFn = (
+  scope: Record<string, number>,
+  x?: number,
+  y?: number,
+  z?: number,
+  t?: number,
+  theta?: number,
+  phi?: number,
+  rho?: number,
+  r?: number
+) => number;
+
+const fastEvalCache = new Map<string, FastEvalFn>();
+
+/**
+ * JIT-compiles a math expression string into a high-performance native JavaScript function.
+ * Avoids repeated mathjs AST walks and runtime object allocations.
+ */
+export function getFastEvaluator(expr: string): FastEvalFn {
+  const trimmed = (expr || '').trim();
+  if (!trimmed) return () => 0;
+
+  const cached = fastEvalCache.get(trimmed);
+  if (cached) return cached;
+
+  try {
+    const node = math.parse(trimmed);
+
+    const nodeToJs = (n: any): string => {
+      if (n.isSymbolNode) {
+        const name = n.name;
+        if (name === 'pi' || name === 'PI') return 'Math.PI';
+        if (name === 'e' || name === 'E') return 'Math.E';
+        if (name === 'x') return '(x !== undefined ? x : (scope.x ?? 0))';
+        if (name === 'y') return '(y !== undefined ? y : (scope.y ?? 0))';
+        if (name === 'z') return '(z !== undefined ? z : (scope.z ?? 0))';
+        if (name === 't' || name === 'time') return '(t !== undefined ? t : (scope.t ?? scope.time ?? 0))';
+        if (name === 'theta') return '(theta !== undefined ? theta : (scope.theta ?? 0))';
+        if (name === 'phi') return '(phi !== undefined ? phi : (scope.phi ?? 0))';
+        if (name === 'rho') return '(rho !== undefined ? rho : (scope.rho ?? 0))';
+        if (name === 'r') return '(r !== undefined ? r : (scope.r ?? 0))';
+        return `(scope['${name}'] ?? 0)`;
+      }
+      if (n.isConstantNode) {
+        return String(n.value);
+      }
+      if (n.isOperatorNode) {
+        if (n.op === '^') {
+          return `Math.pow(${nodeToJs(n.args[0])}, ${nodeToJs(n.args[1])})`;
+        }
+        if (n.isUnary()) {
+          return `(${n.op}${nodeToJs(n.args[0])})`;
+        }
+        return `(${nodeToJs(n.args[0])} ${n.op} ${nodeToJs(n.args[1])})`;
+      }
+      if (n.isParenthesisNode) {
+        return `(${nodeToJs(n.content)})`;
+      }
+      if (n.isFunctionNode) {
+        const fnName = n.name.toLowerCase();
+        const argsStr = n.args.map(nodeToJs).join(', ');
+
+        const mathFns = new Set([
+          'sin',
+          'cos',
+          'tan',
+          'asin',
+          'acos',
+          'atan',
+          'atan2',
+          'sinh',
+          'cosh',
+          'tanh',
+          'asinh',
+          'acosh',
+          'atanh',
+          'sqrt',
+          'cbrt',
+          'exp',
+          'log',
+          'log10',
+          'log2',
+          'abs',
+          'floor',
+          'ceil',
+          'round',
+          'min',
+          'max',
+          'sign',
+        ]);
+        if (fnName === 'ln') return `Math.log(${argsStr})`;
+        if (fnName === 'log') return `Math.log10(${argsStr})`;
+        if (mathFns.has(fnName)) {
+          return `Math.${fnName}(${argsStr})`;
+        }
+        if (fnName === 'mod') {
+          return `((${nodeToJs(n.args[0])}) % (${nodeToJs(n.args[1])}))`;
+        }
+        throw new Error('Unsupported function: ' + fnName);
+      }
+      throw new Error('Unsupported node type: ' + n.type);
+    };
+
+    const jsCode = nodeToJs(node);
+    const compiledFn = new Function(
+      'scope',
+      'x',
+      'y',
+      'z',
+      't',
+      'theta',
+      'phi',
+      'rho',
+      'r',
+      `"use strict";
+       try {
+         const val = ${jsCode};
+         return (typeof val === 'number' && isFinite(val)) ? val : 0;
+       } catch {
+         return 0;
+       }`
+    ) as FastEvalFn;
+
+    fastEvalCache.set(trimmed, compiledFn);
+    return compiledFn;
+  } catch {
+    // Graceful fallback to compiled mathjs
+    try {
+      const compiled = math.compile(trimmed);
+      const fallbackFn: FastEvalFn = (scope, x, y, z, t, theta, phi, rho, r) => {
+        try {
+          const evalScope: any = Object.assign({}, scope);
+          if (x !== undefined) evalScope.x = x;
+          if (y !== undefined) evalScope.y = y;
+          if (z !== undefined) evalScope.z = z;
+          if (t !== undefined) {
+            evalScope.t = t;
+            evalScope.time = t;
+          }
+          if (theta !== undefined) evalScope.theta = theta;
+          if (phi !== undefined) evalScope.phi = phi;
+          if (rho !== undefined) evalScope.rho = rho;
+          if (r !== undefined) evalScope.r = r;
+          const res = compiled.evaluate(evalScope);
+          return typeof res === 'number' && isFinite(res) ? res : 0;
+        } catch {
+          return 0;
+        }
+      };
+      fastEvalCache.set(trimmed, fallbackFn);
+      return fallbackFn;
+    } catch {
+      const zeroFn: FastEvalFn = () => 0;
+      fastEvalCache.set(trimmed, zeroFn);
+      return zeroFn;
+    }
+  }
+}
+
+/**
+ * Evaluates a numeric or string expression against scope with JIT caching
+ */
+export function evaluateNumericExpr(
+  val: number | string | undefined,
+  scope: Record<string, number>,
+  fallback: number = 0
+): number {
+  if (val === undefined || val === null) return fallback;
+  if (typeof val === 'number') return isFinite(val) ? val : fallback;
+  const str = String(val).trim();
+  if (str === '') return fallback;
+  const num = Number(str);
+  if (!isNaN(num)) return num;
+
+  const fn = getFastEvaluator(str);
+  const res = fn(scope, scope.x, scope.y, scope.z, scope.t);
+  return isFinite(res) ? res : fallback;
 }
 
 export function buildParamScope(params: Record<string, ParamItem>): Record<string, number> {

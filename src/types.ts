@@ -1,6 +1,21 @@
-export type MainTabType = 'surfaceplot' | 'densityplot' | 'vectorfield' | 'parametric' | 'script';
+export type MainTabType =
+  | 'surfaceplot'
+  | 'densityplot'
+  | 'vectorfield'
+  | 'parametric'
+  | 'shapes'
+  | 'script';
 
 export type SchemeType = 'cart' | 'sph' | 'cyl';
+
+export type ShapeType =
+  | 'sphere'
+  | 'cylinder'
+  | 'cube'
+  | 'cone'
+  | 'torus'
+  | 'plane'
+  | 'ellipsoid';
 
 export type LayerType =
   | 'surface'
@@ -15,6 +30,7 @@ export type LayerType =
   | 'density'
   | 'densitySph'
   | 'densityCyl'
+  | 'shape'
   | 'script';
 
 export interface ParamItem {
@@ -24,6 +40,16 @@ export interface ParamItem {
   max: number;
   step: number;
   manual: boolean;
+}
+
+export interface TimeState {
+  time: number;
+  isPlaying: boolean;
+  speed: number;
+  min: number;
+  max: number;
+  step: number;
+  loopMode: 'loop' | 'pingpong' | 'once';
 }
 
 export interface LayerItem {
@@ -48,6 +74,21 @@ export interface LayerItem {
   pR?: string;
   pThetaC?: string;
   pZ?: string;
+  // Basic Shapes Specifics
+  shapeType?: ShapeType;
+  shapeRadius?: number | string; // e.g. 2 or "1.5 + 0.5*sin(t)"
+  shapeRadius2?: number | string; // torus tube radius or ellipsoid b
+  shapeRadius3?: number | string; // ellipsoid c
+  shapeWidth?: number | string; // cube/plane width
+  shapeHeight?: number | string; // cylinder/cone/cube/plane height
+  shapeDepth?: number | string; // cube depth
+  shapeCenterX?: number | string; // center x e.g. 0 or "3*cos(t)"
+  shapeCenterY?: number | string; // center y e.g. 0 or "3*sin(t)"
+  shapeCenterZ?: number | string; // center z
+  shapeAxis?: 'x' | 'y' | 'z'; // alignment axis for cylinder/cone/torus/plane
+  shapeSegments?: number;
+  shapeWireframe?: boolean;
+  shapeOpacity?: number; // 0 - 100
   // Density Field Specifics
   colorMap?: string; // 'thermal' | 'turbo' | 'plasma' | 'viridis' | 'magma' | 'coolwarm' | 'custom'
   threshold?: number; // 0 - 1 (min normalized density threshold)
@@ -60,6 +101,10 @@ export interface LayerItem {
   calculatedMin?: number; // real computed min scalar value for colorbar
   calculatedMax?: number; // real computed max scalar value for colorbar
   densityMode?: 'cloud' | 'slices';
+  // Vector Field Specifics (Field lines / Streamlines with arrowheads)
+  fieldDisplay?: 'vectors' | 'fieldlines' | 'both';
+  streamlineCount?: number; // 12 - 64 seed lines
+  showArrowHeads?: boolean; // arrowheads along field lines
   // Script
   script?: string;
 }

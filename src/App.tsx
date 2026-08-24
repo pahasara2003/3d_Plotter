@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus } from 'lucide-react';
-import { LayerItem, ParamItem, SceneSettings, StatusState } from './types';
+import { LayerItem, ParamItem, SceneSettings, StatusState, TimeState } from './types';
 import { extractParamNames, getLayerExprs, RESERVED_VARS } from './utils/mathUtils';
 import { PALETTE } from './constants/presets';
 import { Topbar } from './components/Topbar';
@@ -15,10 +15,24 @@ import { SceneSettingsPanel } from './components/SceneSettingsPanel';
 import { AddLayerPanel } from './components/AddLayerPanel';
 import { PlotCanvas, PlotCanvasRef } from './components/PlotCanvas';
 import { StatusBar } from './components/StatusBar';
+import { TimeFlowController } from './components/TimeFlowController';
 
 export default function App() {
   const canvasRef = useRef<PlotCanvasRef>(null);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(true);
+
+  // Time-Varying Animation State
+  const [timeState, setTimeState] = useState<TimeState>({
+    time: 0,
+    isPlaying: false,
+    speed: 1,
+    min: 0,
+    max: 10,
+    step: 0.05,
+    loopMode: 'loop',
+  });
+
+  const pingPongDirRef = useRef<1 | -1>(1);
 
   // Initial demo layers: a ripple surface + a 3D helix curve
   const [layers, setLayers] = useState<LayerItem[]>([
@@ -27,22 +41,26 @@ export default function App() {
       type: 'surface',
       visible: true,
       color: '#9d8fff',
-      name: 'Ripple Surface',
+      name: 'Harmonic Ripple',
       R: 5,
       N: 55,
-      eq: 'sin(sqrt(x^2+y^2))',
+      eq: 'sin(sqrt(x^2+y^2) - t*2) / (0.5 + sqrt(x^2+y^2))',
     },
     {
       id: 2,
-      type: 'param',
+      type: 'shape',
       visible: true,
       color: '#ffd060',
-      name: 'Helix Curve',
+      name: 'Orbiting Sphere',
       R: 5,
-      N: 55,
-      px: 'cos(t)*3',
-      py: 'sin(t)*3',
-      pz: 't/4',
+      N: 32,
+      shapeType: 'sphere',
+      shapeRadius: '0.8',
+      shapeCenterX: '3.2*cos(t*1.5)',
+      shapeCenterY: '3.2*sin(t*1.5)',
+      shapeCenterZ: 'sin(t*3)*0.8',
+      shapeWireframe: false,
+      shapeOpacity: 90,
     },
   ]);
 
@@ -60,16 +78,76 @@ export default function App() {
   });
 
   const [status, setStatus] = useState<StatusState>({
-    message: 'Ready — interactive multi-layer 3D plotter active',
+    message: 'Ready — 3D plotter active with basic shapes & time flow',
     isError: false,
   });
 
-  // Re-synchronize variable sliders whenever layer expressions change
+  // Check if any active layers have time variable 't' or 'time'
+  const hasTimeDependentLayers = layers.some((l) => {
+    const exprs = getLayerExprs(l);
+    return exprs.some((e) => /\b(t|time)\b/.test(e));
+  });
+
+  // Continuous animation loop for time flow
+  useEffect(() => {
+    if (!timeState.isPlaying) return;
+
+    let animId: number;
+    let lastTimestamp = performance.now();
+
+    const loop = (now: number) => {
+      const deltaSec = Math.min(0.1, (now - lastTimestamp) / 1000);
+      lastTimestamp = now;
+
+      setTimeState((prev) => {
+        if (!prev.isPlaying) return prev;
+        const dt = deltaSec * prev.speed;
+        let nextTime = prev.time;
+
+        if (prev.loopMode === 'pingpong') {
+          nextTime += dt * pingPongDirRef.current;
+          if (nextTime >= prev.max) {
+            nextTime = prev.max;
+            pingPongDirRef.current = -1;
+          } else if (nextTime <= prev.min) {
+            nextTime = prev.min;
+            pingPongDirRef.current = 1;
+          }
+        } else if (prev.loopMode === 'loop') {
+          nextTime += dt;
+          if (nextTime > prev.max) {
+            const range = prev.max - prev.min;
+            nextTime = prev.min + (range > 0 ? (nextTime - prev.min) % range : 0);
+          }
+        } else {
+          // once
+          nextTime += dt;
+          if (nextTime >= prev.max) {
+            nextTime = prev.max;
+            return { ...prev, time: nextTime, isPlaying: false };
+          }
+        }
+
+        return { ...prev, time: Math.round(nextTime * 1000) / 1000 };
+      });
+
+      animId = requestAnimationFrame(loop);
+    };
+
+    animId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(animId);
+  }, [timeState.isPlaying, timeState.speed, timeState.loopMode]);
+
+  // Re-synchronize variable sliders whenever layer expressions change (ignoring 't' and 'time')
   useEffect(() => {
     const usedVars = new Set<string>();
     layers.forEach((l) => {
       getLayerExprs(l).forEach((expr) => {
-        extractParamNames(expr).forEach((v) => usedVars.add(v));
+        extractParamNames(expr).forEach((v) => {
+          if (!RESERVED_VARS.has(v) && v !== 't' && v !== 'time') {
+            usedVars.add(v);
+          }
+        });
       });
     });
 
@@ -203,7 +281,7 @@ export default function App() {
     });
   };
 
-  // Load demo example showcase
+  // Load demo example showcase with time-varying fields and basic shapes
   const handleLoadExample = () => {
     const demos: LayerItem[] = [
       {
@@ -211,10 +289,10 @@ export default function App() {
         type: 'surface',
         visible: true,
         color: '#9d8fff',
-        name: 'Harmonic Ripple',
+        name: 'Traveling Circular Wave',
         R: 5,
         N: 55,
-        eq: 'sin(a*sqrt(x^2+y^2)) / (0.5 + sqrt(x^2+y^2))',
+        eq: 'sin(2*sqrt(x^2+y^2) - t*2.5) / (1 + 0.35*sqrt(x^2+y^2))',
       },
       {
         id: 102,
@@ -223,30 +301,35 @@ export default function App() {
         color: '#4ecca3',
         name: 'Vortex Vector Field',
         R: 4,
-        N: 30,
-        eq: '[-y, x, 0.4*sin(z)]',
+        N: 24,
+        eq: '[-y + 0.3*sin(t), x + 0.3*cos(t), 0.5*sin(z - t)]',
+        fieldDisplay: 'both',
+        streamlineCount: 16,
+        showArrowHeads: true,
       },
       {
         id: 103,
-        type: 'param',
+        type: 'shape',
         visible: true,
         color: '#ffd060',
-        name: 'Trefoil Knot',
+        name: 'Orbiting Core Sphere',
         R: 5,
-        N: 55,
-        px: 'sin(t)+2*sin(2*t)',
-        py: 'cos(t)-2*cos(2*t)',
-        pz: '-sin(3*t)',
+        N: 32,
+        shapeType: 'sphere',
+        shapeRadius: '0.75',
+        shapeCenterX: '2.6 * cos(t * 1.2)',
+        shapeCenterY: '2.6 * sin(t * 1.2)',
+        shapeCenterZ: '0.8 * sin(t * 2.4)',
+        shapeWireframe: false,
+        shapeOpacity: 95,
       },
     ];
 
     setLayers(demos);
     setNextId(104);
-    setParams({
-      a: { value: 1.5, min: 0.1, max: 4, step: 0.1, manual: false },
-    });
+    setTimeState((prev) => ({ ...prev, isPlaying: true, time: 0 }));
     setStatus({
-      message: 'Loaded multi-coordinate showcase preset (Surface + Vector Field + Trefoil Knot)',
+      message: 'Loaded time-varying showcase preset (Traveling Wave + Dynamic Vector Field + Orbiting Sphere)',
       isError: false,
     });
   };
@@ -301,7 +384,15 @@ export default function App() {
             layers={layers}
             params={params}
             settings={sceneSettings}
+            currentTime={timeState.time}
             onUpdateSettings={setSceneSettings}
+          />
+
+          {/* Time Flow Playback Controller Floating HUD */}
+          <TimeFlowController
+            timeState={timeState}
+            onUpdateTimeState={setTimeState}
+            hasTimeDependentLayers={hasTimeDependentLayers}
           />
 
           {/* Floating button to reopen Add Plot panel when closed */}

@@ -13,6 +13,7 @@ interface PlotCanvasProps {
   layers: LayerItem[];
   params: Record<string, ParamItem>;
   settings: SceneSettings;
+  currentTime?: number;
   onUpdateSettings?: (settings: SceneSettings) => void;
 }
 
@@ -39,7 +40,7 @@ function createTextSprite(text: string, color: string, isSmall: boolean = false)
 }
 
 export const PlotCanvas = forwardRef<PlotCanvasRef, PlotCanvasProps>(
-  ({ layers, params, settings, onUpdateSettings }, ref) => {
+  ({ layers, params, settings, currentTime, onUpdateSettings }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -343,7 +344,7 @@ export const PlotCanvas = forwardRef<PlotCanvasRef, PlotCanvasProps>(
           currentMap.delete(layer.id);
         }
 
-        const newObj = buildLayerThreeObject(layer, params, settings);
+        const newObj = buildLayerThreeObject(layer, params, settings, currentTime);
         if (newObj) {
           scene.add(newObj);
           currentMap.set(layer.id, newObj);
@@ -352,6 +353,7 @@ export const PlotCanvas = forwardRef<PlotCanvasRef, PlotCanvasProps>(
     }, [
       layers,
       params,
+      currentTime,
       settings.surfaceOpacity,
       settings.colorTint,
       settings.wireframe,

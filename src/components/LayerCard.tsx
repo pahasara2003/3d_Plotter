@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Eye, EyeOff, Edit3, Copy, Trash2, Check, X, Sparkles } from 'lucide-react';
-import { LayerItem } from '../types';
+import { LayerItem, ShapeType } from '../types';
 import { typeLabel, buildLatexDisplay, renderKatexToString } from '../utils/mathUtils';
 import { ScriptCodeEditor } from './ScriptCodeEditor';
 
@@ -34,12 +34,30 @@ export const LayerCard: React.FC<LayerCardProps> = ({
   const [pR, setPR] = useState(layer.pR || '');
   const [pThetaC, setPThetaC] = useState(layer.pThetaC || '');
   const [pZ, setPZ] = useState(layer.pZ || '');
+  const [shapeType, setShapeType] = useState(layer.shapeType || 'sphere');
+  const [shapeRadius, setShapeRadius] = useState(String(layer.shapeRadius ?? '2'));
+  const [shapeRadius2, setShapeRadius2] = useState(String(layer.shapeRadius2 ?? '0.6'));
+  const [shapeRadius3, setShapeRadius3] = useState(String(layer.shapeRadius3 ?? '1'));
+  const [shapeWidth, setShapeWidth] = useState(String(layer.shapeWidth ?? '3'));
+  const [shapeHeight, setShapeHeight] = useState(String(layer.shapeHeight ?? '3'));
+  const [shapeDepth, setShapeDepth] = useState(String(layer.shapeDepth ?? '3'));
+  const [shapeCenterX, setShapeCenterX] = useState(String(layer.shapeCenterX ?? '0'));
+  const [shapeCenterY, setShapeCenterY] = useState(String(layer.shapeCenterY ?? '0'));
+  const [shapeCenterZ, setShapeCenterZ] = useState(String(layer.shapeCenterZ ?? '0'));
+  const [shapeAxis, setShapeAxis] = useState(layer.shapeAxis || 'z');
+  const [shapeWireframe, setShapeWireframe] = useState(layer.shapeWireframe || false);
+  const [shapeOpacity, setShapeOpacity] = useState(layer.shapeOpacity ?? 90);
   const [colorMap, setColorMap] = useState(layer.colorMap || 'thermal');
   const [threshold, setThreshold] = useState(layer.threshold ?? 0.06);
   const [coreIso, setCoreIso] = useState(layer.coreIso ?? 0.75);
   const [volumeDensity, setVolumeDensity] = useState(layer.volumeDensity ?? 1.4);
   const [densityPower, setDensityPower] = useState(layer.densityPower ?? 1.2);
   const [showBoundingBox, setShowBoundingBox] = useState(layer.showBoundingBox ?? true);
+  const [fieldDisplay, setFieldDisplay] = useState<'fieldlines' | 'vectors' | 'both'>(
+    layer.fieldDisplay || 'fieldlines'
+  );
+  const [streamlineCount, setStreamlineCount] = useState(layer.streamlineCount ?? 36);
+  const [showArrowHeads, setShowArrowHeads] = useState(layer.showArrowHeads !== false);
   const [script, setScript] = useState(layer.script || '');
 
   const latexHtml = renderKatexToString(buildLatexDisplay(layer));
@@ -58,12 +76,28 @@ export const LayerCard: React.FC<LayerCardProps> = ({
       pR: pR.trim(),
       pThetaC: pThetaC.trim(),
       pZ: pZ.trim(),
+      shapeType,
+      shapeRadius: shapeRadius.trim(),
+      shapeRadius2: shapeRadius2.trim(),
+      shapeRadius3: shapeRadius3.trim(),
+      shapeWidth: shapeWidth.trim(),
+      shapeHeight: shapeHeight.trim(),
+      shapeDepth: shapeDepth.trim(),
+      shapeCenterX: shapeCenterX.trim(),
+      shapeCenterY: shapeCenterY.trim(),
+      shapeCenterZ: shapeCenterZ.trim(),
+      shapeAxis,
+      shapeWireframe,
+      shapeOpacity,
       colorMap,
       threshold,
       coreIso,
       volumeDensity,
       densityPower,
       showBoundingBox,
+      fieldDisplay,
+      streamlineCount,
+      showArrowHeads,
       script,
     };
     onUpdate(updated);
@@ -82,12 +116,28 @@ export const LayerCard: React.FC<LayerCardProps> = ({
     setPR(layer.pR || '');
     setPThetaC(layer.pThetaC || '');
     setPZ(layer.pZ || '');
+    setShapeType(layer.shapeType || 'sphere');
+    setShapeRadius(String(layer.shapeRadius ?? '2'));
+    setShapeRadius2(String(layer.shapeRadius2 ?? '0.6'));
+    setShapeRadius3(String(layer.shapeRadius3 ?? '1'));
+    setShapeWidth(String(layer.shapeWidth ?? '3'));
+    setShapeHeight(String(layer.shapeHeight ?? '3'));
+    setShapeDepth(String(layer.shapeDepth ?? '3'));
+    setShapeCenterX(String(layer.shapeCenterX ?? '0'));
+    setShapeCenterY(String(layer.shapeCenterY ?? '0'));
+    setShapeCenterZ(String(layer.shapeCenterZ ?? '0'));
+    setShapeAxis(layer.shapeAxis || 'z');
+    setShapeWireframe(layer.shapeWireframe || false);
+    setShapeOpacity(layer.shapeOpacity ?? 90);
     setColorMap(layer.colorMap || 'thermal');
     setThreshold(layer.threshold ?? 0.06);
     setCoreIso(layer.coreIso ?? 0.75);
     setVolumeDensity(layer.volumeDensity ?? 1.4);
     setDensityPower(layer.densityPower ?? 1.2);
     setShowBoundingBox(layer.showBoundingBox ?? true);
+    setFieldDisplay(layer.fieldDisplay || 'fieldlines');
+    setStreamlineCount(layer.streamlineCount ?? 36);
+    setShowArrowHeads(layer.showArrowHeads !== false);
     setScript(layer.script || '');
     setIsEditing(false);
   };
@@ -112,6 +162,8 @@ export const LayerCard: React.FC<LayerCardProps> = ({
       case 'densitySph':
       case 'densityCyl':
         return 'border-violet-500/40 text-violet-300 bg-violet-500/15';
+      case 'shape':
+        return 'border-amber-500/40 text-amber-300 bg-amber-500/15';
       case 'script':
         return 'border-sky-500/30 text-sky-300 bg-sky-500/10';
       default:
@@ -167,6 +219,33 @@ export const LayerCard: React.FC<LayerCardProps> = ({
         >
           {typeLabel(layer.type)}
         </span>
+
+        {/* Vector Field Mode Quick Toggle */}
+        {(layer.type === 'field' || layer.type === 'fieldSph' || layer.type === 'fieldCyl') && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              const currentMode = layer.fieldDisplay || 'fieldlines';
+              const nextMode =
+                currentMode === 'fieldlines'
+                  ? 'vectors'
+                  : currentMode === 'vectors'
+                  ? 'both'
+                  : 'fieldlines';
+              onUpdate({ ...layer, fieldDisplay: nextMode });
+              setFieldDisplay(nextMode);
+            }}
+            className="text-[9.5px] font-mono px-1.5 py-0.5 rounded border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 transition-colors cursor-pointer"
+            title="Click to cycle representation: Field Lines ↔ Vectors ↔ Both"
+          >
+            {(layer.fieldDisplay || 'fieldlines') === 'fieldlines'
+              ? '⚡ Field Lines'
+              : (layer.fieldDisplay || 'fieldlines') === 'vectors'
+              ? '→ Vectors'
+              : '⚡+→ Both'}
+          </button>
+        )}
 
         {/* Quick Action buttons */}
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -331,6 +410,89 @@ export const LayerCard: React.FC<LayerCardProps> = ({
             </div>
           )}
 
+          {/* Vector Field Specific Controls (Field lines vs Vectors vs Both, Density, Arrowheads) */}
+          {(layer.type === 'field' ||
+            layer.type === 'fieldSph' ||
+            layer.type === 'fieldCyl') && (
+            <div className="flex flex-col gap-2 bg-[#18181e] p-2.5 rounded-xl border border-white/[0.06]">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  Field Representation
+                </span>
+                <span className="text-[10px] text-cyan-300 font-mono">Streamlines & Vectors</span>
+              </div>
+
+              {/* Segmented button toggle */}
+              <div className="grid grid-cols-3 gap-1 p-0.5 bg-[#111114] rounded-lg border border-white/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => setFieldDisplay('fieldlines')}
+                  className={`py-1 px-1.5 text-[10px] font-medium rounded transition-all cursor-pointer ${
+                    fieldDisplay === 'fieldlines'
+                      ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-500/40 shadow-sm font-semibold'
+                      : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                  }`}
+                >
+                  Field Lines
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFieldDisplay('vectors')}
+                  className={`py-1 px-1.5 text-[10px] font-medium rounded transition-all cursor-pointer ${
+                    fieldDisplay === 'vectors'
+                      ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-500/40 shadow-sm font-semibold'
+                      : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                  }`}
+                >
+                  Vectors
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFieldDisplay('both')}
+                  className={`py-1 px-1.5 text-[10px] font-medium rounded transition-all cursor-pointer ${
+                    fieldDisplay === 'both'
+                      ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-500/40 shadow-sm font-semibold'
+                      : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                  }`}
+                >
+                  Both
+                </button>
+              </div>
+
+              {fieldDisplay !== 'vectors' && (
+                <div className="flex items-center justify-between pt-1 gap-2">
+                  <div className="flex items-center gap-1.5 flex-1">
+                    <span className="text-[10px] text-slate-400 shrink-0">Line Density:</span>
+                    <input
+                      type="range"
+                      min="12"
+                      max="64"
+                      step="4"
+                      value={streamlineCount}
+                      onChange={(e) => setStreamlineCount(parseInt(e.target.value))}
+                      className="flex-1 accent-cyan-400 h-1.5 cursor-pointer rounded bg-[#101014]"
+                    />
+                    <span className="text-[10px] font-mono text-cyan-300 w-6 text-right">
+                      {streamlineCount}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowArrowHeads(!showArrowHeads)}
+                    className={`text-[9.5px] font-mono px-2 py-0.5 rounded border transition-colors cursor-pointer shrink-0 ${
+                      showArrowHeads
+                        ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                        : 'bg-[#101014] text-slate-500 border-white/[0.08]'
+                    }`}
+                  >
+                    {showArrowHeads ? 'Arrows ON' : 'Arrows OFF'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Cartesian Parametric */}
           {layer.type === 'param' && (
             <>
@@ -446,6 +608,135 @@ export const LayerCard: React.FC<LayerCardProps> = ({
                 />
               </div>
             </>
+          )}
+
+          {/* Shape Editor */}
+          {layer.type === 'shape' && (
+            <div className="flex flex-col gap-2.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400 w-16 shrink-0">
+                  Shape
+                </span>
+                <select
+                  value={shapeType}
+                  onChange={(e) => setShapeType(e.target.value as ShapeType)}
+                  className="flex-1 text-xs px-2 py-1.5 rounded-lg bg-[#18181e] border border-white/[0.1] text-slate-100"
+                >
+                  <option value="sphere">Sphere</option>
+                  <option value="cylinder">Cylinder</option>
+                  <option value="cube">Cube / Box</option>
+                  <option value="cone">Cone</option>
+                  <option value="torus">Torus</option>
+                  <option value="plane">Plane</option>
+                  <option value="ellipsoid">Ellipsoid</option>
+                </select>
+              </div>
+
+              {/* Dynamic shape parameters */}
+              {(shapeType === 'sphere' || shapeType === 'cylinder' || shapeType === 'cone' || shapeType === 'torus' || shapeType === 'ellipsoid') && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Radius / a:</span>
+                  <input
+                    type="text"
+                    value={shapeRadius}
+                    onChange={(e) => setShapeRadius(e.target.value)}
+                    placeholder="2"
+                    className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#18181e] border border-white/[0.1] text-slate-100 focus:outline-none focus:border-indigo-400"
+                  />
+                </div>
+              )}
+
+              {(shapeType === 'cylinder' || shapeType === 'cube' || shapeType === 'cone' || shapeType === 'plane') && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Height:</span>
+                  <input
+                    type="text"
+                    value={shapeHeight}
+                    onChange={(e) => setShapeHeight(e.target.value)}
+                    placeholder="3"
+                    className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#18181e] border border-white/[0.1] text-slate-100 focus:outline-none focus:border-indigo-400"
+                  />
+                </div>
+              )}
+
+              {(shapeType === 'cube' || shapeType === 'plane') && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Width:</span>
+                  <input
+                    type="text"
+                    value={shapeWidth}
+                    onChange={(e) => setShapeWidth(e.target.value)}
+                    placeholder="3"
+                    className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#18181e] border border-white/[0.1] text-slate-100 focus:outline-none focus:border-indigo-400"
+                  />
+                </div>
+              )}
+
+              {shapeType === 'cube' && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Depth:</span>
+                  <input
+                    type="text"
+                    value={shapeDepth}
+                    onChange={(e) => setShapeDepth(e.target.value)}
+                    placeholder="3"
+                    className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#18181e] border border-white/[0.1] text-slate-100 focus:outline-none focus:border-indigo-400"
+                  />
+                </div>
+              )}
+
+              {/* Center position */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-mono text-slate-400 w-14 shrink-0">Center:</span>
+                <input
+                  type="text"
+                  value={shapeCenterX}
+                  onChange={(e) => setShapeCenterX(e.target.value)}
+                  placeholder="x₀"
+                  className="w-1/3 font-mono text-xs px-2 py-1 rounded bg-[#18181e] border border-white/[0.1] text-slate-100"
+                />
+                <input
+                  type="text"
+                  value={shapeCenterY}
+                  onChange={(e) => setShapeCenterY(e.target.value)}
+                  placeholder="y₀"
+                  className="w-1/3 font-mono text-xs px-2 py-1 rounded bg-[#18181e] border border-white/[0.1] text-slate-100"
+                />
+                <input
+                  type="text"
+                  value={shapeCenterZ}
+                  onChange={(e) => setShapeCenterZ(e.target.value)}
+                  placeholder="z₀"
+                  className="w-1/3 font-mono text-xs px-2 py-1 rounded bg-[#18181e] border border-white/[0.1] text-slate-100"
+                />
+              </div>
+
+              {/* Wireframe & Opacity */}
+              <div className="flex items-center justify-between pt-1">
+                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={shapeWireframe}
+                    onChange={(e) => setShapeWireframe(e.target.checked)}
+                    className="rounded accent-indigo-500 w-4 h-4 cursor-pointer"
+                  />
+                  <span>Wireframe</span>
+                </label>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-slate-400">Opacity:</span>
+                  <input
+                    type="range"
+                    min="10"
+                    max="100"
+                    value={shapeOpacity}
+                    onChange={(e) => setShapeOpacity(parseInt(e.target.value))}
+                    className="w-16 accent-indigo-500 h-1.5"
+                  />
+                  <span className="font-mono text-xs text-slate-300">{shapeOpacity}%</span>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Script Editor */}

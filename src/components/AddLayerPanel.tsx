@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Plus, Code2, X, Sparkles, Layers, Sliders, Activity } from 'lucide-react';
-import { MainTabType, SchemeType, LayerItem, LayerType } from '../types';
+import { Plus, Code2, X, Sparkles, Layers, Sliders, Activity, Box, Circle, Disc, Zap } from 'lucide-react';
+import { MainTabType, SchemeType, LayerItem, LayerType, ShapeType } from '../types';
 import { PALETTE } from '../constants/presets';
 import { ScriptCodeEditor } from './ScriptCodeEditor';
 
@@ -21,8 +21,25 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
     densityplot: 'cart',
     vectorfield: 'cart',
     parametric: 'cart',
+    shapes: 'cart',
     script: 'cart',
   });
+
+  // Basic Shapes states
+  const [shapeType, setShapeType] = useState<ShapeType>('sphere');
+  const [shapeRadius, setShapeRadius] = useState('2');
+  const [shapeRadius2, setShapeRadius2] = useState('0.6');
+  const [shapeRadius3, setShapeRadius3] = useState('1');
+  const [shapeWidth, setShapeWidth] = useState('3');
+  const [shapeHeight, setShapeHeight] = useState('3');
+  const [shapeDepth, setShapeDepth] = useState('3');
+  const [shapeCenterX, setShapeCenterX] = useState('0');
+  const [shapeCenterY, setShapeCenterY] = useState('0');
+  const [shapeCenterZ, setShapeCenterZ] = useState('0');
+  const [shapeAxis, setShapeAxis] = useState<'x' | 'y' | 'z'>('z');
+  const [shapeWireframe, setShapeWireframe] = useState(false);
+  const [shapeOpacity, setShapeOpacity] = useState(90);
+  const [shapeSegments, setShapeSegments] = useState(32);
 
   // Surface equations
   const [surfEq, setSurfEq] = useState('sin(sqrt(x^2+y^2))');
@@ -44,6 +61,9 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
   const [fieldEq, setFieldEq] = useState('[-y, x, 0.3]');
   const [fieldSphEq, setFieldSphEq] = useState('[0, 1, 0]');
   const [fieldCylEq, setFieldCylEq] = useState('[0, 1, 0.2]');
+  const [fieldDisplay, setFieldDisplay] = useState<'fieldlines' | 'vectors' | 'both'>('fieldlines');
+  const [streamlineCount, setStreamlineCount] = useState(36);
+  const [showArrowHeads, setShowArrowHeads] = useState(true);
 
   // Parametric curves
   const [px, setPx] = useState('cos(t)');
@@ -85,6 +105,8 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
       type = curScheme === 'cart' ? 'field' : curScheme === 'sph' ? 'fieldSph' : 'fieldCyl';
     } else if (mainTab === 'parametric') {
       type = curScheme === 'cart' ? 'param' : curScheme === 'sph' ? 'paramSph' : 'paramCyl';
+    } else if (mainTab === 'shapes') {
+      type = 'shape';
     } else {
       type = 'script';
     }
@@ -138,12 +160,21 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
       layerData.name = computedName || `Cyl Volume: ${layerData.eq}`;
     } else if (type === 'field') {
       layerData.eq = fieldEq.trim();
+      layerData.fieldDisplay = fieldDisplay;
+      layerData.streamlineCount = streamlineCount;
+      layerData.showArrowHeads = showArrowHeads;
       layerData.name = computedName || layerData.eq;
     } else if (type === 'fieldSph') {
       layerData.eq = fieldSphEq.trim();
+      layerData.fieldDisplay = fieldDisplay;
+      layerData.streamlineCount = streamlineCount;
+      layerData.showArrowHeads = showArrowHeads;
       layerData.name = computedName || `F_sph ${layerData.eq}`;
     } else if (type === 'fieldCyl') {
       layerData.eq = fieldCylEq.trim();
+      layerData.fieldDisplay = fieldDisplay;
+      layerData.streamlineCount = streamlineCount;
+      layerData.showArrowHeads = showArrowHeads;
       layerData.name = computedName || `F_cyl ${layerData.eq}`;
     } else if (type === 'param') {
       layerData.px = px.trim();
@@ -160,6 +191,31 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
       layerData.pThetaC = pThetaC.trim();
       layerData.pZ = pZ.trim();
       layerData.name = computedName || `r,θ,z = ${layerData.pR}, ${layerData.pThetaC}, ${layerData.pZ}`;
+    } else if (type === 'shape') {
+      layerData.shapeType = shapeType;
+      layerData.shapeRadius = shapeRadius;
+      layerData.shapeRadius2 = shapeRadius2;
+      layerData.shapeRadius3 = shapeRadius3;
+      layerData.shapeWidth = shapeWidth;
+      layerData.shapeHeight = shapeHeight;
+      layerData.shapeDepth = shapeDepth;
+      layerData.shapeCenterX = shapeCenterX;
+      layerData.shapeCenterY = shapeCenterY;
+      layerData.shapeCenterZ = shapeCenterZ;
+      layerData.shapeAxis = shapeAxis;
+      layerData.shapeWireframe = shapeWireframe;
+      layerData.shapeOpacity = shapeOpacity;
+      layerData.shapeSegments = shapeSegments;
+      const shapeNames: Record<ShapeType, string> = {
+        sphere: 'Sphere',
+        cylinder: 'Cylinder',
+        cube: 'Cube Box',
+        cone: 'Cone',
+        torus: 'Torus Ring',
+        plane: 'Plane',
+        ellipsoid: 'Ellipsoid',
+      };
+      layerData.name = computedName || `${shapeNames[shapeType]} (${shapeCenterX}, ${shapeCenterY}, ${shapeCenterZ})`;
     } else if (type === 'script') {
       layerData.script = script;
       layerData.name = computedName || 'Custom Script Plot';
@@ -179,7 +235,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
           </div>
           <div>
             <h2 className="text-sm font-semibold text-slate-100">Add New Plot</h2>
-            <p className="text-[11px] text-slate-500">Surface, 3D Density Field, Vector, or Curve</p>
+            <p className="text-[11px] text-slate-500">Surface, 3D Density, Vector, Basic Shapes, or Curves</p>
           </div>
         </div>
 
@@ -198,12 +254,13 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
       {/* Main Tab Navigation Bar */}
       <div className="px-4 pt-3 pb-2 shrink-0">
         <div className="flex flex-wrap gap-1 bg-[#18181e] p-1 rounded-xl border border-white/[0.08]">
-          {(['surfaceplot', 'densityplot', 'vectorfield', 'parametric', 'script'] as MainTabType[]).map((tab) => {
+          {(['surfaceplot', 'densityplot', 'vectorfield', 'parametric', 'shapes', 'script'] as MainTabType[]).map((tab) => {
             const labels: Record<MainTabType, string> = {
               surfaceplot: 'Surface',
               densityplot: '3D Density',
               vectorfield: 'Vectors',
               parametric: 'Curve',
+              shapes: 'Shapes',
               script: 'Script',
             };
             const isActive = mainTab === tab;
@@ -212,7 +269,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                 key={tab}
                 type="button"
                 onClick={() => setMainTab(tab)}
-                className={`flex-1 min-w-[62px] py-1.5 px-1.5 text-[11px] font-medium rounded-lg transition-all cursor-pointer truncate text-center ${
+                className={`flex-1 min-w-[50px] py-1.5 px-1 text-[11px] font-medium rounded-lg transition-all cursor-pointer truncate text-center ${
                   isActive
                     ? 'bg-indigo-600 text-white shadow-sm font-semibold'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
@@ -227,8 +284,8 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
 
       {/* Scrollable Form Body */}
       <div className="flex-1 overflow-y-auto px-4 py-2 flex flex-col gap-4">
-        {/* Coordinate System Selector for non-script types */}
-        {mainTab !== 'script' && (
+        {/* Coordinate System Selector for non-script and non-shapes types */}
+        {mainTab !== 'script' && mainTab !== 'shapes' && (
           <div className="flex flex-col gap-1.5">
             <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
               Coordinate System
@@ -246,10 +303,10 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                     key={sch}
                     type="button"
                     onClick={() => setSchemeForTab(sch)}
-                    className={`flex-1 py-1.5 px-2 text-[11px] font-medium rounded-lg border transition-all cursor-pointer truncate ${
+                    className={`flex-1 py-1 px-1.5 text-[10.5px] font-medium rounded-lg border transition-all cursor-pointer ${
                       isActive
-                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40 shadow-sm'
-                        : 'bg-[#18181e] text-slate-400 hover:text-slate-200 border-white/[0.08]'
+                        ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300 font-semibold'
+                        : 'bg-[#16161b] border-white/[0.06] text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
                     }`}
                   >
                     {labels[sch]}
@@ -619,10 +676,11 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                 />
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {[
-                    { label: 'Vortex', eq: '[-y, x, 0.3]' },
-                    { label: 'Sink/Source', eq: '[-x, -y, -z]' },
+                    { label: 'E-Dipole Field', eq: '[3*x*z/(x^2+y^2+z^2+0.1)^2.5, 3*y*z/(x^2+y^2+z^2+0.1)^2.5, (2*z^2-x^2-y^2)/(x^2+y^2+z^2+0.1)^2.5]' },
+                    { label: 'B-Field (Wire)', eq: '[-y/(x^2+y^2+0.1), x/(x^2+y^2+0.1), 0]' },
+                    { label: 'Coulomb Charge', eq: '[x/(x^2+y^2+z^2+0.1)^1.5, y/(x^2+y^2+z^2+0.1)^1.5, z/(x^2+y^2+z^2+0.1)^1.5]' },
+                    { label: 'Magnetic Vortex', eq: '[-y, x, 0.3]' },
                     { label: 'Spiral Flow', eq: '[-y, x, sin(z)]' },
-                    { label: 'Dipole', eq: '[x/(x^2+y^2+z^2+0.1), y/(x^2+y^2+z^2+0.1), z]' },
                   ].map((p) => (
                     <button
                       key={p.label}
@@ -704,6 +762,86 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                 </div>
               </>
             )}
+
+            {/* Field Lines / Streamlines and Vectors Toggle */}
+            <div className="flex flex-col gap-2.5 pt-2.5 border-t border-white/[0.06]">
+              <div className="flex items-center justify-between">
+                <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
+                  Field Representation
+                </span>
+                <span className="text-[10.5px] text-cyan-300 font-mono">Streamlines & Direction</span>
+              </div>
+
+              {/* Toggle Segment: Field Lines vs Vectors vs Both */}
+              <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#101014] rounded-lg border border-white/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => setFieldDisplay('fieldlines')}
+                  className={`py-1 px-2 text-[11px] font-medium rounded transition-all cursor-pointer ${
+                    fieldDisplay === 'fieldlines'
+                      ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                  }`}
+                >
+                  Field Lines (Streamlines)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFieldDisplay('vectors')}
+                  className={`py-1 px-2 text-[11px] font-medium rounded transition-all cursor-pointer ${
+                    fieldDisplay === 'vectors'
+                      ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                  }`}
+                >
+                  Discrete Vectors
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFieldDisplay('both')}
+                  className={`py-1 px-2 text-[11px] font-medium rounded transition-all cursor-pointer ${
+                    fieldDisplay === 'both'
+                      ? 'bg-cyan-500/25 text-cyan-200 border border-cyan-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                  }`}
+                >
+                  Both Combined
+                </button>
+              </div>
+
+              {/* Streamline settings when fieldlines or both are enabled */}
+              {fieldDisplay !== 'vectors' && (
+                <div className="flex items-center justify-between pt-1 gap-3">
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-[10.5px] text-slate-400 shrink-0">Line Density:</span>
+                    <input
+                      type="range"
+                      min="12"
+                      max="64"
+                      step="4"
+                      value={streamlineCount}
+                      onChange={(e) => setStreamlineCount(parseInt(e.target.value))}
+                      className="flex-1 accent-cyan-400 h-1.5 cursor-pointer rounded bg-[#101014]"
+                    />
+                    <span className="text-[10.5px] font-mono text-cyan-300 w-8 text-right">
+                      {streamlineCount}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowArrowHeads(!showArrowHeads)}
+                    className={`text-[10.5px] font-mono px-2.5 py-1 rounded border transition-colors cursor-pointer shrink-0 ${
+                      showArrowHeads
+                        ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                        : 'bg-[#101014] text-slate-500 border-white/[0.08]'
+                    }`}
+                  >
+                    {showArrowHeads ? 'Arrowheads ON' : 'Arrowheads OFF'}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -862,7 +1000,536 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
           </div>
         )}
 
-        {/* 5. SCRIPT CODE EDITOR (LARGER WITH SYNTAX HIGHLIGHTING) */}
+        {/* 5. BASIC SHAPES (SPHERE, CYLINDER, CUBE, CONE, TORUS, PLANE, ELLIPSOID) */}
+        {mainTab === 'shapes' && (
+          <div className="flex flex-col gap-3">
+            {/* Shape Type Selector */}
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
+                Choose Shape
+              </span>
+              <div className="grid grid-cols-4 gap-1.5">
+                {(
+                  [
+                    { type: 'sphere', label: 'Sphere', icon: <Circle className="w-3.5 h-3.5" /> },
+                    { type: 'cylinder', label: 'Cylinder', icon: <Disc className="w-3.5 h-3.5" /> },
+                    { type: 'cube', label: 'Cube / Box', icon: <Box className="w-3.5 h-3.5" /> },
+                    { type: 'cone', label: 'Cone', icon: <Zap className="w-3.5 h-3.5" /> },
+                    { type: 'torus', label: 'Torus', icon: <Disc className="w-3.5 h-3.5" /> },
+                    { type: 'plane', label: 'Plane', icon: <Layers className="w-3.5 h-3.5" /> },
+                    { type: 'ellipsoid', label: 'Ellipsoid', icon: <Circle className="w-3.5 h-3.5" /> },
+                  ] as Array<{ type: ShapeType; label: string; icon: React.ReactNode }>
+                ).map((s) => {
+                  const isActive = shapeType === s.type;
+                  return (
+                    <button
+                      key={s.type}
+                      type="button"
+                      onClick={() => setShapeType(s.type)}
+                      className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-xs font-medium border transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-indigo-600 border-indigo-500 text-white shadow-md font-semibold'
+                          : 'bg-[#16161b] border-white/[0.08] text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
+                      }`}
+                    >
+                      {s.icon}
+                      <span className="truncate">{s.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Quick Shape Presets */}
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">
+                Quick Presets & Animated Samples
+              </span>
+              <div className="flex flex-wrap gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShapeType('sphere');
+                    setShapeRadius('2');
+                    setShapeCenterX('0');
+                    setShapeCenterY('0');
+                    setShapeCenterZ('0');
+                  }}
+                  className="px-2 py-1 text-[10.5px] rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-slate-300 transition-colors cursor-pointer"
+                >
+                  Unit Sphere
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShapeType('sphere');
+                    setShapeRadius('0.8');
+                    setShapeCenterX('3*cos(t)');
+                    setShapeCenterY('3*sin(t)');
+                    setShapeCenterZ('0.5*sin(2*t)');
+                  }}
+                  className="px-2 py-1 text-[10.5px] rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 font-medium transition-colors cursor-pointer"
+                >
+                  ⚡ Orbiting Sphere
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShapeType('sphere');
+                    setShapeRadius('1.5 + 0.6*sin(2*t)');
+                    setShapeCenterX('0');
+                    setShapeCenterY('0');
+                    setShapeCenterZ('0');
+                  }}
+                  className="px-2 py-1 text-[10.5px] rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 font-medium transition-colors cursor-pointer"
+                >
+                  ⚡ Pulsating Sphere
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShapeType('cylinder');
+                    setShapeRadius('1.5');
+                    setShapeHeight('4');
+                    setShapeAxis('z');
+                    setShapeCenterX('0');
+                    setShapeCenterY('0');
+                    setShapeCenterZ('0');
+                  }}
+                  className="px-2 py-1 text-[10.5px] rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-slate-300 transition-colors cursor-pointer"
+                >
+                  Cylinder (r=1.5, h=4)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShapeType('cube');
+                    setShapeWidth('4');
+                    setShapeHeight('4');
+                    setShapeDepth('4');
+                    setShapeCenterX('0');
+                    setShapeCenterY('0');
+                    setShapeCenterZ('0');
+                  }}
+                  className="px-2 py-1 text-[10.5px] rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-slate-300 transition-colors cursor-pointer"
+                >
+                  Cube (4×4×4)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShapeType('torus');
+                    setShapeRadius('2.5');
+                    setShapeRadius2('0.6');
+                    setShapeAxis('z');
+                    setShapeCenterX('0');
+                    setShapeCenterY('0');
+                    setShapeCenterZ('0');
+                  }}
+                  className="px-2 py-1 text-[10.5px] rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-slate-300 transition-colors cursor-pointer"
+                >
+                  Torus Ring
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShapeType('cone');
+                    setShapeRadius('2');
+                    setShapeHeight('3.5');
+                    setShapeAxis('z');
+                    setShapeCenterX('0');
+                    setShapeCenterY('0');
+                    setShapeCenterZ('0');
+                  }}
+                  className="px-2 py-1 text-[10.5px] rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-slate-300 transition-colors cursor-pointer"
+                >
+                  Cone
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShapeType('plane');
+                    setShapeWidth('6');
+                    setShapeHeight('6');
+                    setShapeAxis('z');
+                    setShapeCenterX('0');
+                    setShapeCenterY('0');
+                    setShapeCenterZ('-2');
+                  }}
+                  className="px-2 py-1 text-[10.5px] rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-slate-300 transition-colors cursor-pointer"
+                >
+                  Ground Plane (z=-2)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShapeType('ellipsoid');
+                    setShapeRadius('2.5');
+                    setShapeRadius2('1.8');
+                    setShapeRadius3('1.0');
+                    setShapeCenterX('0');
+                    setShapeCenterY('0');
+                    setShapeCenterZ('0');
+                  }}
+                  className="px-2 py-1 text-[10.5px] rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-slate-300 transition-colors cursor-pointer"
+                >
+                  Ellipsoid
+                </button>
+              </div>
+            </div>
+
+            {/* Shape Dimensions Inputs */}
+            <div className="flex flex-col gap-2 bg-[#16161b] p-3 rounded-xl border border-white/[0.08]">
+              <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
+                Geometric Parameters
+              </span>
+
+              {/* Sphere */}
+              {shapeType === 'sphere' && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Radius R:</span>
+                  <input
+                    type="text"
+                    value={shapeRadius}
+                    onChange={(e) => setShapeRadius(e.target.value)}
+                    placeholder="2 or 1.5+0.5*sin(t)"
+                    className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                  />
+                </div>
+              )}
+
+              {/* Cylinder */}
+              {shapeType === 'cylinder' && (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Radius r:</span>
+                    <input
+                      type="text"
+                      value={shapeRadius}
+                      onChange={(e) => setShapeRadius(e.target.value)}
+                      placeholder="1.5"
+                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Height h:</span>
+                    <input
+                      type="text"
+                      value={shapeHeight}
+                      onChange={(e) => setShapeHeight(e.target.value)}
+                      placeholder="4"
+                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Axis:</span>
+                    <div className="flex gap-1.5 flex-1">
+                      {(['x', 'y', 'z'] as Array<'x' | 'y' | 'z'>).map((ax) => (
+                        <button
+                          key={ax}
+                          type="button"
+                          onClick={() => setShapeAxis(ax)}
+                          className={`flex-1 py-1 rounded-lg text-xs font-mono font-semibold border uppercase transition-colors cursor-pointer ${
+                            shapeAxis === ax
+                              ? 'bg-indigo-600 border-indigo-500 text-white'
+                              : 'bg-[#111114] border-white/[0.08] text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          {ax}-axis
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Cube */}
+              {shapeType === 'cube' && (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Width (X):</span>
+                    <input
+                      type="text"
+                      value={shapeWidth}
+                      onChange={(e) => setShapeWidth(e.target.value)}
+                      placeholder="3"
+                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Height (Y):</span>
+                    <input
+                      type="text"
+                      value={shapeHeight}
+                      onChange={(e) => setShapeHeight(e.target.value)}
+                      placeholder="3"
+                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Depth (Z):</span>
+                    <input
+                      type="text"
+                      value={shapeDepth}
+                      onChange={(e) => setShapeDepth(e.target.value)}
+                      placeholder="3"
+                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Cone */}
+              {shapeType === 'cone' && (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Radius r:</span>
+                    <input
+                      type="text"
+                      value={shapeRadius}
+                      onChange={(e) => setShapeRadius(e.target.value)}
+                      placeholder="2"
+                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Height h:</span>
+                    <input
+                      type="text"
+                      value={shapeHeight}
+                      onChange={(e) => setShapeHeight(e.target.value)}
+                      placeholder="3.5"
+                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Axis:</span>
+                    <div className="flex gap-1.5 flex-1">
+                      {(['x', 'y', 'z'] as Array<'x' | 'y' | 'z'>).map((ax) => (
+                        <button
+                          key={ax}
+                          type="button"
+                          onClick={() => setShapeAxis(ax)}
+                          className={`flex-1 py-1 rounded-lg text-xs font-mono font-semibold border uppercase transition-colors cursor-pointer ${
+                            shapeAxis === ax
+                              ? 'bg-indigo-600 border-indigo-500 text-white'
+                              : 'bg-[#111114] border-white/[0.08] text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          {ax}-axis
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Torus */}
+              {shapeType === 'torus' && (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Ring R:</span>
+                    <input
+                      type="text"
+                      value={shapeRadius}
+                      onChange={(e) => setShapeRadius(e.target.value)}
+                      placeholder="2.5"
+                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Tube r:</span>
+                    <input
+                      type="text"
+                      value={shapeRadius2}
+                      onChange={(e) => setShapeRadius2(e.target.value)}
+                      placeholder="0.6"
+                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Axis:</span>
+                    <div className="flex gap-1.5 flex-1">
+                      {(['x', 'y', 'z'] as Array<'x' | 'y' | 'z'>).map((ax) => (
+                        <button
+                          key={ax}
+                          type="button"
+                          onClick={() => setShapeAxis(ax)}
+                          className={`flex-1 py-1 rounded-lg text-xs font-mono font-semibold border uppercase transition-colors cursor-pointer ${
+                            shapeAxis === ax
+                              ? 'bg-indigo-600 border-indigo-500 text-white'
+                              : 'bg-[#111114] border-white/[0.08] text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          {ax}-axis
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Plane */}
+              {shapeType === 'plane' && (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Width:</span>
+                    <input
+                      type="text"
+                      value={shapeWidth}
+                      onChange={(e) => setShapeWidth(e.target.value)}
+                      placeholder="6"
+                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Height:</span>
+                    <input
+                      type="text"
+                      value={shapeHeight}
+                      onChange={(e) => setShapeHeight(e.target.value)}
+                      placeholder="6"
+                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Normal:</span>
+                    <div className="flex gap-1.5 flex-1">
+                      {(['x', 'y', 'z'] as Array<'x' | 'y' | 'z'>).map((ax) => (
+                        <button
+                          key={ax}
+                          type="button"
+                          onClick={() => setShapeAxis(ax)}
+                          className={`flex-1 py-1 rounded-lg text-xs font-mono font-semibold border uppercase transition-colors cursor-pointer ${
+                            shapeAxis === ax
+                              ? 'bg-indigo-600 border-indigo-500 text-white'
+                              : 'bg-[#111114] border-white/[0.08] text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          {ax}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Ellipsoid */}
+              {shapeType === 'ellipsoid' && (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Semi-a (X):</span>
+                    <input
+                      type="text"
+                      value={shapeRadius}
+                      onChange={(e) => setShapeRadius(e.target.value)}
+                      placeholder="2.5"
+                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Semi-b (Y):</span>
+                    <input
+                      type="text"
+                      value={shapeRadius2}
+                      onChange={(e) => setShapeRadius2(e.target.value)}
+                      placeholder="1.8"
+                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-400 w-16 shrink-0">Semi-c (Z):</span>
+                    <input
+                      type="text"
+                      value={shapeRadius3}
+                      onChange={(e) => setShapeRadius3(e.target.value)}
+                      placeholder="1.0"
+                      className="flex-1 font-mono text-xs px-2.5 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Center Coordinates with math expression support */}
+            <div className="flex flex-col gap-2 bg-[#16161b] p-3 rounded-xl border border-white/[0.08]">
+              <div className="flex items-center justify-between">
+                <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
+                  Center Position (x₀, y₀, z₀)
+                </span>
+                <span className="text-[10px] text-indigo-300 font-mono">Supports 't'</span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-mono text-slate-400">x₀:</span>
+                  <input
+                    type="text"
+                    value={shapeCenterX}
+                    onChange={(e) => setShapeCenterX(e.target.value)}
+                    placeholder="0"
+                    className="w-full font-mono text-xs px-2 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-mono text-slate-400">y₀:</span>
+                  <input
+                    type="text"
+                    value={shapeCenterY}
+                    onChange={(e) => setShapeCenterY(e.target.value)}
+                    placeholder="0"
+                    className="w-full font-mono text-xs px-2 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-mono text-slate-400">z₀:</span>
+                  <input
+                    type="text"
+                    value={shapeCenterZ}
+                    onChange={(e) => setShapeCenterZ(e.target.value)}
+                    placeholder="0"
+                    className="w-full font-mono text-xs px-2 py-1.5 rounded-lg bg-[#111114] border border-white/[0.12] text-slate-100 focus:outline-none focus:border-indigo-400"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Shape Material & Mesh Quality */}
+            <div className="flex flex-col gap-2.5 bg-[#16161b] p-3 rounded-xl border border-white/[0.08]">
+              <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
+                Material & Rendering
+              </span>
+
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={shapeWireframe}
+                    onChange={(e) => setShapeWireframe(e.target.checked)}
+                    className="rounded accent-indigo-500 w-4 h-4 cursor-pointer"
+                  />
+                  <span>Wireframe Mesh</span>
+                </label>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400">Opacity:</span>
+                  <input
+                    type="range"
+                    min="10"
+                    max="100"
+                    step="5"
+                    value={shapeOpacity}
+                    onChange={(e) => setShapeOpacity(parseInt(e.target.value))}
+                    className="w-20 accent-indigo-500 h-1.5 bg-[#111114] rounded cursor-pointer"
+                  />
+                  <span className="font-mono text-xs text-indigo-300 w-8 text-right">{shapeOpacity}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 6. SCRIPT CODE EDITOR (LARGER WITH SYNTAX HIGHLIGHTING) */}
         {mainTab === 'script' && (
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">

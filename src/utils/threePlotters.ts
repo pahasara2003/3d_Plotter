@@ -1,7 +1,13 @@
 import * as THREE from 'three';
 import * as math from 'mathjs';
 import { LayerItem, ParamItem, SceneSettings } from '../types';
-import { buildParamScope, getColorFromColormap, transformCoord } from './mathUtils';
+import {
+  buildParamScope,
+  getColorFromColormap,
+  transformCoord,
+  evaluateNumericExpr,
+  getFastEvaluator,
+} from './mathUtils';
 
 let glowTextureCache: THREE.CanvasTexture | null = null;
 function getGlowPointTexture(): THREE.CanvasTexture {
@@ -76,45 +82,56 @@ export function makeGridSurfaceMesh(
   wireframe: boolean,
   computeVertex: (i: number, j: number) => { pos: [number, number, number]; val: number }
 ): THREE.Mesh {
-  const verts: number[] = [];
-  const vals: number[] = [];
+  const totalVerts = (N + 1) * (N + 1);
+  const verts = new Float32Array(totalVerts * 3);
+  const vals = new Float32Array(totalVerts);
+
+  let minV = Infinity;
+  let maxV = -Infinity;
+  let ptr = 0;
+  let valPtr = 0;
 
   for (let i = 0; i <= N; i++) {
     for (let j = 0; j <= N; j++) {
       const { pos, val } = computeVertex(i, j);
-      verts.push(pos[0], pos[1], pos[2]);
-      vals.push(isFinite(val) ? val : 0);
+      verts[ptr++] = pos[0];
+      verts[ptr++] = pos[1];
+      verts[ptr++] = pos[2];
+      const validVal = isFinite(val) ? val : 0;
+      vals[valPtr++] = validVal;
+      if (validVal < minV) minV = validVal;
+      if (validVal > maxV) maxV = validVal;
     }
   }
 
-  let minV = Infinity;
-  let maxV = -Infinity;
-  for (const v of vals) {
-    if (v < minV) minV = v;
-    if (v > maxV) maxV = v;
-  }
-
-  const idx: number[] = [];
+  const numQuads = N * N;
+  const idx = new (totalVerts > 65535 ? Uint32Array : Uint16Array)(numQuads * 6);
+  let idxPtr = 0;
   for (let i = 0; i < N; i++) {
     for (let j = 0; j < N; j++) {
       const a = i * (N + 1) + j;
       const b = a + 1;
       const c = (i + 1) * (N + 1) + j;
       const d = c + 1;
-      idx.push(a, b, d, a, d, c);
+      idx[idxPtr++] = a;
+      idx[idxPtr++] = b;
+      idx[idxPtr++] = d;
+      idx[idxPtr++] = a;
+      idx[idxPtr++] = d;
+      idx[idxPtr++] = c;
     }
   }
 
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts), 3));
-  geo.setIndex(idx);
+  geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+  geo.setIndex(new THREE.BufferAttribute(idx, 1));
   geo.computeVertexNormals();
 
   const base = new THREE.Color(color);
-  const cols = new Float32Array(verts.length);
+  const cols = new Float32Array(totalVerts * 3);
   const diff = maxV - minV;
 
-  for (let i = 0; i < vals.length; i++) {
+  for (let i = 0; i < totalVerts; i++) {
     const t = diff > 0.00001 ? (vals[i] - minV) / diff : 0.5;
     const c2 = base.clone().lerp(new THREE.Color(0xffffff), t * tintRatio);
     cols[i * 3] = c2.r;
@@ -312,13 +329,13 @@ export function buildDensityPlotObject(
   if (!layer.eq) return null;
 
   try {
-    const compiled = math.compile(layer.eq);
+    const fastFn = getFastEvaluator(layer.eq);
     const R = layer.R || 5;
     const isSph = layer.type === 'densitySph';
     const isCyl = layer.type === 'densityCyl';
 
-    // Resolution: 3D grid size (default 48x48x48 = 110,592 voxels for smooth rendering)
-    const Ngrid = Math.min(64, Math.max(32, layer.volumeResolution || 48));
+    // Resolution: 3D grid size (default 40x40x40 = 64,000 voxels for real-time raymarching)
+    const Ngrid = Math.min(50, Math.max(28, layer.volumeResolution || 38));
 
     const xMin = settings.useCustomBounds ? settings.xMin : -R;
     const xMax = settings.useCustomBounds ? settings.xMax : R;
@@ -352,13 +369,13 @@ export function buildDensityPlotObject(
               const rho = Math.sqrt(x * x + y * y + z * z);
               const theta = Math.atan2(y, x);
               const phi = Math.acos(Math.max(-1, Math.min(1, z / (rho + 1e-7))));
-              val = compiled.evaluate({ ...scope, rho, theta, phi, x, y, z });
+              val = fastFn(scope, x, y, z, scope.t, theta, phi, rho);
             } else if (isCyl) {
               const r = Math.sqrt(x * x + y * y);
               const theta = Math.atan2(y, x);
-              val = compiled.evaluate({ ...scope, r, theta, z, x, y });
+              val = fastFn(scope, x, y, z, scope.t, theta, undefined, undefined, r);
             } else {
-              val = compiled.evaluate({ ...scope, x, y, z });
+              val = fastFn(scope, x, y, z, scope.t);
             }
 
             if (!isFinite(val) || isNaN(val)) val = 0;
@@ -475,14 +492,496 @@ export function buildDensityPlotObject(
   }
 }
 
+interface Bounds3D {
+  xMin: number;
+  xMax: number;
+  yMin: number;
+  yMax: number;
+  zMin: number;
+  zMax: number;
+}
+
+/**
+ * Traces 3D Streamlines / Field Lines (like in electromagnetism) with Runge-Kutta 4th order
+ * integration, uniform spatial separation, closed loop detection, and arc-length spaced arrowheads.
+ */
+function buildStreamlinesAndArrows(
+  evalField: (x: number, y: number, z: number) => [number, number, number] | null,
+  bounds: Bounds3D,
+  layer: LayerItem,
+  settings: SceneSettings
+): THREE.Group {
+  const grp = new THREE.Group();
+  const colHex = parseInt(layer.color.replace('#', '0x'), 16);
+  const mode = layer.fieldDisplay || 'fieldlines'; // 'fieldlines' | 'vectors' | 'both'
+  const { xMin, xMax, yMin, yMax, zMin, zMax } = bounds;
+
+  const dx = xMax - xMin;
+  const dy = yMax - yMin;
+  const dz = zMax - zMin;
+  const diag = Math.sqrt(dx * dx + dy * dy + dz * dz) || 10;
+  const scaleX = settings.scaleX ?? 1;
+  const scaleY = settings.scaleY ?? 1;
+  const scaleZ = settings.scaleZ ?? 1;
+
+  // 1. Render Discrete Vectors if 'vectors' or 'both'
+  if (mode === 'vectors' || mode === 'both') {
+    const gridN = 6;
+    const stepX = dx / gridN;
+    const stepY = dy / gridN;
+    const stepZ = dz / gridN;
+    const arrowLen = Math.min(stepX, stepY, stepZ) * 0.75;
+
+    for (let i = 0; i <= gridN; i++) {
+      for (let j = 0; j <= gridN; j++) {
+        for (let k = 0; k <= gridN; k++) {
+          const x = xMin + i * stepX;
+          const y = yMin + j * stepY;
+          const z = zMin + k * stepZ;
+          const v = evalField(x, y, z);
+          if (!v) continue;
+          const [vx, vy, vz] = v;
+          const len = Math.sqrt(vx * vx + vy * vy + vz * vz);
+          if (len < 1e-6 || !isFinite(len)) continue;
+
+          const basePos = mapMathToThree(x, y, z, settings);
+          const dirVec = new THREE.Vector3(
+            (vx / len) * scaleX,
+            (vz / len) * scaleZ,
+            (vy / len) * scaleY
+          ).normalize();
+
+          grp.add(
+            new THREE.ArrowHelper(
+              dirVec,
+              new THREE.Vector3(...basePos),
+              arrowLen,
+              colHex,
+              arrowLen * 0.35,
+              arrowLen * 0.18
+            )
+          );
+        }
+      }
+    }
+  }
+
+  // 2. Render Connected Streamlines (Field Lines) with Arrow Heads if 'fieldlines' or 'both'
+  if (mode === 'fieldlines' || mode === 'both') {
+    const targetLines = layer.streamlineCount || 36;
+    const ds = Math.max(0.025, diag / 140); // RK4 step size for smooth curves
+    const maxSteps = 380; // High max steps to complete full 2pi closed orbits
+    // Separation distance between distinct streamlines to avoid duplicate overlapping tracks
+    const minSeparation = diag / (Math.cbrt(targetLines) * 4.2);
+    const minSepSq = (0.55 * minSeparation) ** 2;
+
+    // RK4 normalized direction step helper
+    const getUnitV = (px: number, py: number, pz: number): [number, number, number] | null => {
+      const v = evalField(px, py, pz);
+      if (!v) return null;
+      const [vx, vy, vz] = v;
+      const mag = Math.sqrt(vx * vx + vy * vy + vz * vz);
+      if (mag < 1e-6 || !isFinite(mag)) return null;
+      return [vx / mag, vy / mag, vz / mag];
+    };
+
+    const rk4Step = (
+      px: number,
+      py: number,
+      pz: number,
+      step: number
+    ): [number, number, number] | null => {
+      const k1 = getUnitV(px, py, pz);
+      if (!k1) return null;
+
+      const k2 = getUnitV(px + 0.5 * step * k1[0], py + 0.5 * step * k1[1], pz + 0.5 * step * k1[2]);
+      if (!k2) return null;
+
+      const k3 = getUnitV(px + 0.5 * step * k2[0], py + 0.5 * step * k2[1], pz + 0.5 * step * k2[2]);
+      if (!k3) return null;
+
+      const k4 = getUnitV(px + step * k3[0], py + step * k3[1], pz + step * k3[2]);
+      if (!k4) return null;
+
+      return [
+        px + (step / 6) * (k1[0] + 2 * k2[0] + 2 * k3[0] + k4[0]),
+        py + (step / 6) * (k1[1] + 2 * k2[1] + 2 * k3[1] + k4[1]),
+        pz + (step / 6) * (k1[2] + 2 * k2[2] + 2 * k3[2] + k4[2]),
+      ];
+    };
+
+    const isInsideBounds = (px: number, py: number, pz: number) => {
+      return (
+        px >= xMin - 0.1 * dx &&
+        px <= xMax + 0.1 * dx &&
+        py >= yMin - 0.1 * dy &&
+        py <= yMax + 0.1 * dy &&
+        pz >= zMin - 0.1 * dz &&
+        pz <= zMax + 0.1 * dz
+      );
+    };
+
+    // Coordinate-Aware Candidate Seed Points covering full 2pi angles and multiple radii
+    const candidateSeeds: [number, number, number][] = [];
+    const R_max = Math.min(dx, dy, dz) * 0.46;
+
+    if (layer.type === 'fieldSph') {
+      // Concentric spherical shells across multiple radii and full 2pi angles
+      const nRadii = 5;
+      const radii: number[] = [];
+      for (let rIdx = 1; rIdx <= nRadii; rIdx++) {
+        radii.push((rIdx / (nRadii + 0.1)) * R_max);
+      }
+
+      // Complete 2pi range of azimuthal angles
+      const nThetas = 16;
+      const thetas: number[] = [];
+      for (let t = 0; t < nThetas; t++) {
+        thetas.push((t / nThetas) * 2 * Math.PI);
+      }
+
+      // Polar angles from north pole to south pole
+      const phis = [
+        Math.PI * 0.15,
+        Math.PI * 0.28,
+        Math.PI * 0.42,
+        Math.PI * 0.5, // Equator
+        Math.PI * 0.58,
+        Math.PI * 0.72,
+        Math.PI * 0.85,
+      ];
+
+      for (const rad of radii) {
+        for (const phi of phis) {
+          for (const th of thetas) {
+            const sx = rad * Math.sin(phi) * Math.cos(th);
+            const sy = rad * Math.sin(phi) * Math.sin(th);
+            const sz = rad * Math.cos(phi);
+            candidateSeeds.push([sx, sy, sz]);
+          }
+        }
+      }
+    } else if (layer.type === 'fieldCyl') {
+      // Cylindrical shells: multiple radii, full 2pi angles, multiple heights
+      const nRadii = 5;
+      const radii: number[] = [];
+      for (let rIdx = 1; rIdx <= nRadii; rIdx++) {
+        radii.push((rIdx / (nRadii + 0.1)) * R_max);
+      }
+
+      const nThetas = 16;
+      const thetas: number[] = [];
+      for (let t = 0; t < nThetas; t++) {
+        thetas.push((t / nThetas) * 2 * Math.PI);
+      }
+
+      const nZ = 6;
+      for (const rad of radii) {
+        for (let zi = 1; zi < nZ; zi++) {
+          const sz = zMin + (zi / nZ) * dz;
+          for (const th of thetas) {
+            candidateSeeds.push([rad * Math.cos(th), rad * Math.sin(th), sz]);
+          }
+        }
+      }
+    } else {
+      // Cartesian: 3D grid plus concentric cylindrical rings for vortex / dipole flows
+      const nGrid = Math.max(5, Math.ceil(Math.cbrt(targetLines * 3)));
+      for (let i = 1; i < nGrid; i++) {
+        const x = xMin + (i / nGrid) * dx;
+        for (let j = 1; j < nGrid; j++) {
+          const y = yMin + (j / nGrid) * dy;
+          for (let k = 1; k < nGrid; k++) {
+            const z = zMin + (k / nGrid) * dz;
+            candidateSeeds.push([x, y, z]);
+          }
+        }
+      }
+
+      const radii = [0.25 * R_max, 0.5 * R_max, 0.75 * R_max, 0.95 * R_max];
+      const thetas = [0, Math.PI / 4, Math.PI / 2, (3 * Math.PI) / 4, Math.PI, (5 * Math.PI) / 4, (3 * Math.PI) / 2, (7 * Math.PI) / 4];
+      const zLevels = [zMin + 0.25 * dz, zMin + 0.5 * dz, zMin + 0.75 * dz];
+      for (const r of radii) {
+        for (const z of zLevels) {
+          for (const th of thetas) {
+            candidateSeeds.push([r * Math.cos(th), r * Math.sin(th), z]);
+          }
+        }
+      }
+    }
+
+    // Keep track of sampled points along already-plotted streamlines to prevent duplicate rings
+    const sampledFieldPoints: [number, number, number][] = [];
+    const isSeedOnExistingTrack = (px: number, py: number, pz: number) => {
+      const len = sampledFieldPoints.length;
+      for (let i = 0; i < len; i += 4) {
+        const sp = sampledFieldPoints[i];
+        const distSq = (px - sp[0]) ** 2 + (py - sp[1]) ** 2 + (pz - sp[2]) ** 2;
+        if (distSq < minSepSq) return true;
+      }
+      return false;
+    };
+
+    const showArrowHeads = layer.showArrowHeads !== false;
+    const avgScale = Math.min(scaleX, scaleY, scaleZ);
+    const arrowConeGeo = new THREE.ConeGeometry(0.08 * avgScale, 0.25 * avgScale, 12);
+    const arrowConeMat = new THREE.MeshStandardMaterial({
+      color: colHex,
+      roughness: 0.3,
+      metalness: 0.15,
+    });
+    const lineMat = new THREE.LineBasicMaterial({
+      color: colHex,
+      transparent: true,
+      opacity: 0.88,
+    });
+
+    const upVec = new THREE.Vector3(0, 1, 0);
+    let acceptedLinesCount = 0;
+
+    for (const [sx, sy, sz] of candidateSeeds) {
+      if (acceptedLinesCount >= targetLines) break;
+      if (!isInsideBounds(sx, sy, sz)) continue;
+      if (isSeedOnExistingTrack(sx, sy, sz)) continue;
+
+      const initialV = evalField(sx, sy, sz);
+      if (!initialV) continue;
+
+      // 1. Forward trace with closed loop detection
+      const forwardPts: [number, number, number][] = [];
+      let curX = sx, curY = sy, curZ = sz;
+      let isClosedLoop = false;
+
+      for (let s = 0; s < maxSteps; s++) {
+        const next = rk4Step(curX, curY, curZ, ds);
+        if (!next || !isInsideBounds(next[0], next[1], next[2])) break;
+
+        // Check if trajectory looped back to start point (full 2pi closed orbit)
+        if (s >= 14) {
+          const distToStartSq = (next[0] - sx) ** 2 + (next[1] - sy) ** 2 + (next[2] - sz) ** 2;
+          if (distToStartSq < (2.2 * ds) ** 2) {
+            forwardPts.push([sx, sy, sz]); // Seamlessly close the circle
+            isClosedLoop = true;
+            break;
+          }
+        }
+
+        forwardPts.push(next);
+        curX = next[0]; curY = next[1]; curZ = next[2];
+      }
+
+      // 2. Backward trace (only if not already a closed circular loop)
+      const backwardPts: [number, number, number][] = [];
+      if (!isClosedLoop) {
+        curX = sx; curY = sy; curZ = sz;
+        for (let s = 0; s < maxSteps; s++) {
+          const next = rk4Step(curX, curY, curZ, -ds);
+          if (!next || !isInsideBounds(next[0], next[1], next[2])) break;
+          backwardPts.push(next);
+          curX = next[0]; curY = next[1]; curZ = next[2];
+        }
+      }
+
+      // Assemble full continuous streamline curve
+      const mathLine: [number, number, number][] = isClosedLoop
+        ? [[sx, sy, sz], ...forwardPts]
+        : [...backwardPts.reverse(), [sx, sy, sz], ...forwardPts];
+
+      if (mathLine.length < 5) continue;
+
+      // Calculate total curve arc length
+      let totalArcLen = 0;
+      const arcLengths: number[] = [0];
+      for (let i = 1; i < mathLine.length; i++) {
+        const p0 = mathLine[i - 1];
+        const p1 = mathLine[i];
+        const segLen = Math.sqrt((p1[0] - p0[0]) ** 2 + (p1[1] - p0[1]) ** 2 + (p1[2] - p0[2]) ** 2);
+        totalArcLen += segLen;
+        arcLengths.push(totalArcLen);
+      }
+
+      if (totalArcLen < ds * 3) continue;
+
+      // Register points along this accepted streamline to avoid re-tracing the same path
+      const sampleStep = Math.max(1, Math.floor(mathLine.length / 16));
+      for (let i = 0; i < mathLine.length; i += sampleStep) {
+        sampledFieldPoints.push(mathLine[i]);
+      }
+
+      // Convert mathematical points to Three.js coordinates
+      const threePts = mathLine.map(([mx, my, mz]) => {
+        const p = mapMathToThree(mx, my, mz, settings);
+        return new THREE.Vector3(p[0], p[1], p[2]);
+      });
+
+      // Construct continuous line
+      const lineGeo = new THREE.BufferGeometry().setFromPoints(threePts);
+      const line = new THREE.Line(lineGeo, lineMat);
+      grp.add(line);
+
+      // Place evenly spaced directional arrowheads along the actual curve arc length
+      if (showArrowHeads && threePts.length >= 6) {
+        // Closed loop gets 2 clean opposite arrows; open lines get 1-2 arrows based on length
+        const arrowFractions = isClosedLoop
+          ? [0.25, 0.75]
+          : totalArcLen > diag * 0.35
+          ? [0.35, 0.7]
+          : [0.5];
+
+        for (const frac of arrowFractions) {
+          const targetDist = frac * totalArcLen;
+          let bestIdx = 1;
+          for (let i = 1; i < arcLengths.length - 1; i++) {
+            if (arcLengths[i] >= targetDist) {
+              bestIdx = i;
+              break;
+            }
+          }
+
+          if (bestIdx <= 0 || bestIdx >= threePts.length - 1) continue;
+          const prev = threePts[bestIdx - 1];
+          const next = threePts[bestIdx + 1];
+          const tangent = new THREE.Vector3().subVectors(next, prev).normalize();
+          if (tangent.lengthSq() < 0.2) continue;
+
+          const cone = new THREE.Mesh(arrowConeGeo, arrowConeMat);
+          cone.quaternion.setFromUnitVectors(upVec, tangent);
+          cone.position.copy(threePts[bestIdx]);
+          grp.add(cone);
+        }
+      }
+
+      acceptedLinesCount++;
+    }
+  }
+
+  return grp;
+}
+
+export function buildShapeObject(
+  layer: LayerItem,
+  scope: Record<string, number>,
+  settings: SceneSettings
+): THREE.Object3D | null {
+  const shapeType = layer.shapeType || 'sphere';
+  const color = layer.color || '#6366f1';
+  const wireframe = layer.shapeWireframe ?? settings.wireframe;
+  const opacity = ((layer.shapeOpacity ?? 90) / 100) * (settings.surfaceOpacity / 100);
+  const segments = Math.max(12, Math.min(80, layer.shapeSegments || 32));
+
+  // Evaluate Center coordinates
+  const cx = evaluateNumericExpr(layer.shapeCenterX, scope, 0);
+  const cy = evaluateNumericExpr(layer.shapeCenterY, scope, 0);
+  const cz = evaluateNumericExpr(layer.shapeCenterZ, scope, 0);
+
+  // Evaluate Dimensions
+  const r = Math.max(0.01, evaluateNumericExpr(layer.shapeRadius, scope, 2));
+  const r2 = Math.max(0.01, evaluateNumericExpr(layer.shapeRadius2, scope, 0.6));
+  const r3 = Math.max(0.01, evaluateNumericExpr(layer.shapeRadius3, scope, 1.0));
+  const w = Math.max(0.01, evaluateNumericExpr(layer.shapeWidth, scope, 3));
+  const h = Math.max(0.01, evaluateNumericExpr(layer.shapeHeight, scope, 3));
+  const d = Math.max(0.01, evaluateNumericExpr(layer.shapeDepth, scope, 3));
+
+  const axis = layer.shapeAxis || 'z';
+
+  let geo: THREE.BufferGeometry;
+
+  switch (shapeType) {
+    case 'sphere':
+      geo = new THREE.SphereGeometry(r, segments, Math.round(segments * 0.75));
+      break;
+    case 'cylinder':
+      geo = new THREE.CylinderGeometry(r, r, h, segments, 1, false);
+      if (axis === 'z') {
+        geo.rotateX(Math.PI / 2);
+      } else if (axis === 'x') {
+        geo.rotateZ(Math.PI / 2);
+      }
+      break;
+    case 'cube':
+      geo = new THREE.BoxGeometry(w, h, d);
+      break;
+    case 'cone':
+      geo = new THREE.ConeGeometry(r, h, segments);
+      if (axis === 'z') {
+        geo.rotateX(Math.PI / 2);
+      } else if (axis === 'x') {
+        geo.rotateZ(Math.PI / 2);
+      }
+      break;
+    case 'torus':
+      geo = new THREE.TorusGeometry(r, r2, Math.round(segments * 0.6), segments);
+      if (axis === 'z') {
+        geo.rotateX(Math.PI / 2);
+      } else if (axis === 'x') {
+        geo.rotateY(Math.PI / 2);
+      }
+      break;
+    case 'plane':
+      geo = new THREE.PlaneGeometry(w, h, Math.round(segments / 2), Math.round(segments / 2));
+      if (axis === 'z') {
+        geo.rotateX(-Math.PI / 2);
+      } else if (axis === 'x') {
+        geo.rotateY(Math.PI / 2);
+      }
+      break;
+    case 'ellipsoid':
+      geo = new THREE.SphereGeometry(1, segments, Math.round(segments * 0.75));
+      geo.scale(r, r3, r2); // Math X=r, Math Z=r3 (height), Math Y=r2
+      break;
+    default:
+      geo = new THREE.SphereGeometry(r, segments, segments);
+  }
+
+  const mat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(color),
+    roughness: 0.35,
+    metalness: 0.2,
+    transparent: true,
+    opacity,
+    wireframe,
+    side: THREE.DoubleSide,
+  });
+
+  const mesh = new THREE.Mesh(geo, mat);
+
+  // Position mesh at mapped coordinates
+  const threePos = mapMathToThree(cx, cy, cz, settings);
+  mesh.position.set(threePos[0], threePos[1], threePos[2]);
+
+  const group = new THREE.Group();
+  group.add(mesh);
+
+  // If solid and shape is cube or cylinder, add subtle edge wireframe for crispness
+  if (!wireframe && (shapeType === 'cube' || shapeType === 'cylinder')) {
+    const edges = new THREE.EdgesGeometry(geo, 24);
+    const lineMat = new THREE.LineBasicMaterial({
+      color: new THREE.Color(color).clone().lerp(new THREE.Color(0xffffff), 0.4),
+      transparent: true,
+      opacity: Math.min(1, opacity + 0.2),
+    });
+    const wire = new THREE.LineSegments(edges, lineMat);
+    wire.position.copy(mesh.position);
+    group.add(wire);
+  }
+
+  return group;
+}
+
 export function buildLayerThreeObject(
   layer: LayerItem,
   params: Record<string, ParamItem>,
-  settings: SceneSettings
+  settings: SceneSettings,
+  currentTime?: number
 ): THREE.Object3D | null {
   if (!layer.visible) return null;
 
-  const scope = buildParamScope(params);
+  const baseScope = buildParamScope(params);
+  const scope = {
+    ...baseScope,
+    t: currentTime !== undefined ? currentTime : (baseScope.t ?? 0),
+    time: currentTime !== undefined ? currentTime : (baseScope.time ?? 0),
+  };
   const tintRatio = settings.colorTint / 100;
   const opacity = settings.surfaceOpacity / 100;
   const wireframe = settings.wireframe;
@@ -497,6 +996,11 @@ export function buildLayerThreeObject(
   const zMax = settings.useCustomBounds ? settings.zMax : R;
 
   try {
+    // Basic Shapes (Sphere, Cylinder, Cube, Cone, Torus, Plane, Ellipsoid)
+    if (layer.type === 'shape') {
+      return buildShapeObject(layer, scope, settings);
+    }
+
     // 3D Density Plots (Cartesian, Spherical, Cylindrical)
     if (
       (layer.type === 'density' || layer.type === 'densitySph' || layer.type === 'densityCyl') &&
@@ -582,52 +1086,25 @@ export function buildLayerThreeObject(
       const fx = math.compile(fxE);
       const fy = math.compile(fyE);
       const fz = math.compile(fzE);
-      const grp = new THREE.Group();
-      const stepX = (xMax - xMin) / 6;
-      const stepY = (yMax - yMin) / 6;
-      const stepZ = (zMax - zMin) / 6;
-      const col = parseInt(layer.color.replace('#', '0x'), 16);
 
-      for (let i = 0; i <= 6; i++) {
-        for (let j = 0; j <= 6; j++) {
-          for (let k = 0; k <= 6; k++) {
-            const x = xMin + i * stepX;
-            const y = yMin + j * stepY;
-            const z = zMin + k * stepZ;
-            let vx = 0,
-              vy = 0,
-              vz = 0;
-            try {
-              vx = fx.evaluate({ ...scope, x, y, z });
-              vy = fy.evaluate({ ...scope, x, y, z });
-              vz = fz.evaluate({ ...scope, x, y, z });
-            } catch {
-              continue;
-            }
-            const len = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1;
-            const sc = stepX * 0.45;
-            const basePos = mapMathToThree(x, y, z, settings);
-            // Direction mapped to Three.js orientation: [vx, vz, vy]
-            const dirVec = new THREE.Vector3(
-              vx / len * (settings.scaleX ?? 1),
-              vz / len * (settings.scaleZ ?? 1),
-              vy / len * (settings.scaleY ?? 1)
-            ).normalize();
-
-            grp.add(
-              new THREE.ArrowHelper(
-                dirVec,
-                new THREE.Vector3(...basePos),
-                sc,
-                col,
-                sc * 0.35,
-                sc * 0.17
-              )
-            );
-          }
+      const evalField = (x: number, y: number, z: number): [number, number, number] | null => {
+        try {
+          const vx = fx.evaluate({ ...scope, x, y, z });
+          const vy = fy.evaluate({ ...scope, x, y, z });
+          const vz = fz.evaluate({ ...scope, x, y, z });
+          if (!isFinite(vx) || !isFinite(vy) || !isFinite(vz)) return null;
+          return [vx, vy, vz];
+        } catch {
+          return null;
         }
-      }
-      return grp;
+      };
+
+      return buildStreamlinesAndArrows(
+        evalField,
+        { xMin, xMax, yMin, yMax, zMin, zMax },
+        layer,
+        settings
+      );
     }
 
     if (layer.type === 'fieldSph' && layer.eq) {
@@ -644,60 +1121,69 @@ export function buildLayerThreeObject(
       const fr = math.compile(frE);
       const ft = math.compile(ftE);
       const fp = math.compile(fpE);
-      const grp = new THREE.Group();
-      const col = parseInt(layer.color.replace('#', '0x'), 16);
-      const stepR = R / 3;
-      const stepT = (2 * Math.PI) / 6;
-      const stepP = Math.PI / 5;
 
-      for (let i = 1; i <= 3; i++) {
-        for (let j = 0; j <= 6; j++) {
-          for (let k = 1; k <= 4; k++) {
-            const rho = i * stepR;
-            const theta = j * stepT;
-            const phi = k * stepP;
-            let frV = 0,
-              ftV = 0,
-              fpV = 0;
-            try {
-              frV = fr.evaluate({ ...scope, rho, theta, phi });
-              ftV = ft.evaluate({ ...scope, rho, theta, phi });
-              fpV = fp.evaluate({ ...scope, rho, theta, phi });
-            } catch {
-              continue;
-            }
-            const x = rho * Math.sin(phi) * Math.cos(theta);
-            const y = rho * Math.sin(phi) * Math.sin(theta);
-            const z = rho * Math.cos(phi);
-            const eR = [Math.sin(phi) * Math.cos(theta), Math.sin(phi) * Math.sin(theta), Math.cos(phi)];
-            const eT = [-Math.sin(theta), Math.cos(theta), 0];
-            const eP = [Math.cos(phi) * Math.cos(theta), Math.cos(phi) * Math.sin(theta), -Math.sin(phi)];
-            const vx = frV * eR[0] + ftV * eT[0] + fpV * eP[0];
-            const vy = frV * eR[1] + ftV * eT[1] + fpV * eP[1];
-            const vz = frV * eR[2] + ftV * eT[2] + fpV * eP[2];
-            const len = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1;
-            const sc = stepR * 0.9;
-            const basePos = mapMathToThree(x, y, z, settings);
-            const dirVec = new THREE.Vector3(
-              vx / len * (settings.scaleX ?? 1),
-              vz / len * (settings.scaleZ ?? 1),
-              vy / len * (settings.scaleY ?? 1)
-            ).normalize();
+      const evalField = (x: number, y: number, z: number): [number, number, number] | null => {
+        try {
+          const rho = Math.sqrt(x * x + y * y + z * z);
+          if (rho < 1e-6) return null;
+          const rxy = Math.sqrt(x * x + y * y);
+          let theta = Math.atan2(y, x);
+          if (theta < 0) theta += 2 * Math.PI;
+          const phi = Math.acos(Math.max(-1, Math.min(1, z / rho)));
 
-            grp.add(
-              new THREE.ArrowHelper(
-                dirVec,
-                new THREE.Vector3(...basePos),
-                sc,
-                col,
-                sc * 0.35,
-                sc * 0.17
-              )
-            );
+          const frV = fr.evaluate({ ...scope, rho, theta, phi });
+          const ftV = ft.evaluate({ ...scope, rho, theta, phi });
+          const fpV = fp.evaluate({ ...scope, rho, theta, phi });
+          if (!isFinite(frV) || !isFinite(ftV) || !isFinite(fpV)) return null;
+
+          let eRx = x / rho;
+          let eRy = y / rho;
+          let eRz = z / rho;
+          let eTx = 0;
+          let eTy = 0;
+          let eTz = 0;
+          let ePx = 0;
+          let ePy = 0;
+          let ePz = 0;
+
+          if (rxy > 1e-5) {
+            const cosT = x / rxy;
+            const sinT = y / rxy;
+            const cosP = z / rho;
+            const sinP = rxy / rho;
+
+            eTx = -sinT;
+            eTy = cosT;
+            eTz = 0;
+
+            ePx = cosP * cosT;
+            ePy = cosP * sinT;
+            ePz = -sinP;
+          } else {
+            const sgnZ = z >= 0 ? 1 : -1;
+            eRx = 0;
+            eRy = 0;
+            eRz = sgnZ;
+            ePx = sgnZ * Math.cos(theta);
+            ePy = sgnZ * Math.sin(theta);
+            ePz = 0;
           }
+
+          const vx = frV * eRx + ftV * eTx + fpV * ePx;
+          const vy = frV * eRy + ftV * eTy + fpV * ePy;
+          const vz = frV * eRz + ftV * eTz + fpV * ePz;
+          return [vx, vy, vz];
+        } catch {
+          return null;
         }
-      }
-      return grp;
+      };
+
+      return buildStreamlinesAndArrows(
+        evalField,
+        { xMin, xMax, yMin, yMax, zMin, zMax },
+        layer,
+        settings
+      );
     }
 
     if (layer.type === 'fieldCyl' && layer.eq) {
@@ -714,59 +1200,35 @@ export function buildLayerThreeObject(
       const fr = math.compile(frE);
       const ft = math.compile(ftE);
       const fz = math.compile(fzE);
-      const grp = new THREE.Group();
-      const col = parseInt(layer.color.replace('#', '0x'), 16);
-      const stepR = R / 3;
-      const stepT = (2 * Math.PI) / 8;
-      const stepZ = (zMax - zMin) / 6;
 
-      for (let i = 1; i <= 3; i++) {
-        for (let j = 0; j <= 8; j++) {
-          for (let k = 0; k <= 6; k++) {
-            const r = i * stepR;
-            const theta = j * stepT;
-            const z = zMin + k * stepZ;
-            let frV = 0,
-              ftV = 0,
-              fzV = 0;
-            try {
-              frV = fr.evaluate({ ...scope, r, theta, z });
-              ftV = ft.evaluate({ ...scope, r, theta, z });
-              fzV = fz.evaluate({ ...scope, r, theta, z });
-            } catch {
-              continue;
-            }
-            const x = r * Math.cos(theta);
-            const y = r * Math.sin(theta);
-            const eR = [Math.cos(theta), Math.sin(theta), 0];
-            const eT = [-Math.sin(theta), Math.cos(theta), 0];
-            const eZ = [0, 0, 1];
-            const vx = frV * eR[0] + ftV * eT[0] + fzV * eZ[0];
-            const vy = frV * eR[1] + ftV * eT[1] + fzV * eZ[1];
-            const vz = frV * eR[2] + ftV * eT[2] + fzV * eZ[2];
-            const len = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1;
-            const sc = stepR * 0.75;
-            const basePos = mapMathToThree(x, y, z, settings);
-            const dirVec = new THREE.Vector3(
-              vx / len * (settings.scaleX ?? 1),
-              vz / len * (settings.scaleZ ?? 1),
-              vy / len * (settings.scaleY ?? 1)
-            ).normalize();
+      const evalField = (x: number, y: number, z: number): [number, number, number] | null => {
+        try {
+          const r = Math.sqrt(x * x + y * y);
+          let theta = Math.atan2(y, x);
+          if (theta < 0) theta += 2 * Math.PI;
 
-            grp.add(
-              new THREE.ArrowHelper(
-                dirVec,
-                new THREE.Vector3(...basePos),
-                sc,
-                col,
-                sc * 0.35,
-                sc * 0.17
-              )
-            );
-          }
+          const frV = fr.evaluate({ ...scope, r, theta, z });
+          const ftV = ft.evaluate({ ...scope, r, theta, z });
+          const fzV = fz.evaluate({ ...scope, r, theta, z });
+          if (!isFinite(frV) || !isFinite(ftV) || !isFinite(fzV)) return null;
+
+          const cosT = Math.cos(theta);
+          const sinT = Math.sin(theta);
+          const vx = frV * cosT - ftV * sinT;
+          const vy = frV * sinT + ftV * cosT;
+          const vz = fzV;
+          return [vx, vy, vz];
+        } catch {
+          return null;
         }
-      }
-      return grp;
+      };
+
+      return buildStreamlinesAndArrows(
+        evalField,
+        { xMin, xMax, yMin, yMax, zMin, zMax },
+        layer,
+        settings
+      );
     }
 
     if (layer.type === 'param' && layer.px && layer.py && layer.pz) {

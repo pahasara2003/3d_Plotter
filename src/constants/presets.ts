@@ -90,4 +90,13 @@ plotSurfaceSph((theta, phi) => {
 plotSurfaceCyl((theta, z) => {
   return 1 + 0.25 * Math.sin(5 * theta + z);
 });`,
+  travelingWave: `// Time-Varying Traveling Circular Wave
+plotSurface((x, y) => {
+  const r = Math.sqrt(x*x + y*y);
+  return Math.sin(2 * r - t * 3) / (1 + 0.3 * r);
+});`,
+  breathingSph: `// Time-Varying Pulsating Multipole
+plotSurfaceSph((theta, phi) => {
+  return 2 + 0.5 * Math.sin(3 * theta + t * 2) * Math.sin(2 * phi - t);
+});`,
 };

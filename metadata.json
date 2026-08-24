@@ -1,6 +1,6 @@
 {
   "name": "3D Plotter",
-  "description": "Interactive multi-layer 3D mathematical plotter supporting Cartesian, Spherical, and Cylindrical coordinate systems, vector fields, parametric curves, scripts, and real-time variable sliders.",
+  "description": "Interactive multi-layer 3D mathematical plotter supporting Cartesian, Spherical, and Cylindrical coordinate systems, vector fields with streamlines, parametric curves, basic 3D shapes, time-varying field animations with variable t, and custom scripts.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
