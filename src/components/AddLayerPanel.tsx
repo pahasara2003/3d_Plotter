@@ -8,12 +8,16 @@ interface AddLayerPanelProps {
   onAddLayer: (layer: Omit<LayerItem, 'id' | 'visible'>) => void;
   nextColor: string;
   onClose?: () => void;
+  onOpenFullIDE?: (draftScript?: string) => void;
+  onOpenSplitView?: () => void;
 }
 
 export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
   onAddLayer,
   nextColor,
   onClose,
+  onOpenFullIDE,
+  onOpenSplitView,
 }) => {
   const [mainTab, setMainTab] = useState<MainTabType>('surfaceplot');
   const [schemes, setSchemes] = useState<Record<MainTabType, SchemeType>>({
@@ -80,7 +84,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
 
   // Script code
   const [script, setScript] = useState(
-    `// Sinc 3D Surface Generator\nplotSurface((x, y) => {\n  const r = Math.sqrt(x*x + y*y) + 0.001;\n  return (Math.sin(r) / r) * 3;\n});`
+    `# Sinc 3D Surface Generator\nimport math\n\ndef sinc_surface(x, y):\n    r = math.sqrt(x**2 + y**2) + 0.001\n    return (math.sin(r) / r) * 3.0\n\nplot_surface(sinc_surface)`
   );
 
   const [layerColor, setLayerColor] = useState(nextColor || PALETTE[0]);
@@ -1529,22 +1533,25 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
           </div>
         )}
 
-        {/* 6. SCRIPT CODE EDITOR (LARGER WITH SYNTAX HIGHLIGHTING) */}
+        {/* 6. SCRIPT CODE EDITOR (LARGER WITH PYTHON HIGHLIGHTING & VIEW SHORTCUTS) */}
         {mainTab === 'script' && (
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-300 flex items-center gap-1.5">
-                <Code2 className="w-4 h-4 text-sky-400" />
-                Script Code Workspace
+                <Code2 className="w-4 h-4 text-emerald-400" />
+                Python 3 Script Workspace
               </span>
-              <span className="text-[10.5px] text-slate-500 font-mono">Syntax Highlighted</span>
+              <span className="text-[10.5px] text-slate-500 font-mono">Python Highlighting</span>
             </div>
 
-            {/* Syntax Highlighted Script Editor */}
+            {/* Python Syntax Highlighted Script Editor */}
             <ScriptCodeEditor
               value={script}
               onChange={setScript}
-              heightClass="min-h-[280px] h-[340px]"
+              heightClass="min-h-[300px] h-[360px]"
+              onOpenFullIDE={onOpenFullIDE ? () => onOpenFullIDE(script) : undefined}
+              onOpenSplitView={onOpenSplitView}
+              showLayoutButtons={true}
             />
           </div>
         )}

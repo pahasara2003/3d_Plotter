@@ -1,3 +1,5 @@
+export type ViewModeType = 'plot' | 'split' | 'script';
+
 export type MainTabType =
   | 'surfaceplot'
   | 'densityplot'

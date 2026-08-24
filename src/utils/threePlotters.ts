@@ -8,6 +8,7 @@ import {
   evaluateNumericExpr,
   getFastEvaluator,
 } from './mathUtils';
+import { runPythonScriptSync } from './pythonRunner';
 
 let glowTextureCache: THREE.CanvasTexture | null = null;
 function getGlowPointTexture(): THREE.CanvasTexture {
@@ -80,9 +81,11 @@ export function makeGridSurfaceMesh(
   tintRatio: number,
   opacity: number,
   wireframe: boolean,
-  computeVertex: (i: number, j: number) => { pos: [number, number, number]; val: number }
+  computeVertex: (i: number, j: number) => { pos: [number, number, number]; val: number },
+  M?: number
 ): THREE.Mesh {
-  const totalVerts = (N + 1) * (N + 1);
+  const cols = M !== undefined ? M : N;
+  const totalVerts = (N + 1) * (cols + 1);
   const verts = new Float32Array(totalVerts * 3);
   const vals = new Float32Array(totalVerts);
 
@@ -92,7 +95,7 @@ export function makeGridSurfaceMesh(
   let valPtr = 0;
 
   for (let i = 0; i <= N; i++) {
-    for (let j = 0; j <= N; j++) {
+    for (let j = 0; j <= cols; j++) {
       const { pos, val } = computeVertex(i, j);
       verts[ptr++] = pos[0];
       verts[ptr++] = pos[1];
@@ -104,14 +107,14 @@ export function makeGridSurfaceMesh(
     }
   }
 
-  const numQuads = N * N;
+  const numQuads = N * cols;
   const idx = new (totalVerts > 65535 ? Uint32Array : Uint16Array)(numQuads * 6);
   let idxPtr = 0;
   for (let i = 0; i < N; i++) {
-    for (let j = 0; j < N; j++) {
-      const a = i * (N + 1) + j;
+    for (let j = 0; j < cols; j++) {
+      const a = i * (cols + 1) + j;
       const b = a + 1;
-      const c = (i + 1) * (N + 1) + j;
+      const c = (i + 1) * (cols + 1) + j;
       const d = c + 1;
       idx[idxPtr++] = a;
       idx[idxPtr++] = b;
@@ -128,17 +131,17 @@ export function makeGridSurfaceMesh(
   geo.computeVertexNormals();
 
   const base = new THREE.Color(color);
-  const cols = new Float32Array(totalVerts * 3);
+  const colsArr = new Float32Array(totalVerts * 3);
   const diff = maxV - minV;
 
   for (let i = 0; i < totalVerts; i++) {
     const t = diff > 0.00001 ? (vals[i] - minV) / diff : 0.5;
     const c2 = base.clone().lerp(new THREE.Color(0xffffff), t * tintRatio);
-    cols[i * 3] = c2.r;
-    cols[i * 3 + 1] = c2.g;
-    cols[i * 3 + 2] = c2.b;
+    colsArr[i * 3] = c2.r;
+    colsArr[i * 3 + 1] = c2.g;
+    colsArr[i * 3 + 2] = c2.b;
   }
-  geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colsArr, 3));
 
   return new THREE.Mesh(
     geo,
@@ -1276,223 +1279,236 @@ export function buildLayerThreeObject(
       const grp = new THREE.Group();
       const color = layer.color;
       const base = new THREE.Color(color);
-      const points3d: number[] = [];
-      let surfaceResult: { mode: 'cart' | 'sph' | 'cyl'; fn: (...args: any[]) => number } | null = null;
-      const curveFns: Array<(t: number) => [number, number, number] | null> = [];
-      let meshResult: { pts: Float32Array; rows: number; cols: number } | null = null;
 
-      const api = {
-        plot3d: (x: number, y: number, z: number) => {
-          if (isFinite(x) && isFinite(y) && isFinite(z)) {
-            const p = mapMathToThree(x, y, z, settings);
-            points3d.push(p[0], p[1], p[2]);
-          }
-        },
-        plotSurface: (fn: (x: number, y: number) => number) => {
-          surfaceResult = { mode: 'cart', fn };
-        },
-        plotSurfaceSph: (fn: (theta: number, phi: number) => number) => {
-          surfaceResult = { mode: 'sph', fn };
-        },
-        plotSurfaceCyl: (fn: (theta: number, z: number) => number) => {
-          surfaceResult = { mode: 'cyl', fn };
-        },
-        plotCurve: (fn: (t: number) => [number, number, number]) => {
-          curveFns.push((t) => {
-            const r = fn(t);
-            if (!r) return null;
-            return mapMathToThree(r[0], r[1], r[2], settings);
-          });
-        },
-        plotCurveSph: (fn: (t: number) => [number, number, number]) => {
-          curveFns.push((t) => {
-            const r = fn(t);
-            if (!r) return null;
-            const [rho, theta, phi] = r;
-            const x = rho * Math.sin(phi) * Math.cos(theta);
-            const y = rho * Math.sin(phi) * Math.sin(theta);
-            const z = rho * Math.cos(phi);
-            return mapMathToThree(x, y, z, settings);
-          });
-        },
-        plotCurveCyl: (fn: (t: number) => [number, number, number]) => {
-          curveFns.push((t) => {
-            const r = fn(t);
-            if (!r) return null;
-            const [rr, theta, z] = r;
-            const x = rr * Math.cos(theta);
-            const y = rr * Math.sin(theta);
-            return mapMathToThree(x, y, z, settings);
-          });
-        },
-        plotMesh: (pts: Float32Array, rows?: number, cols?: number) => {
-          meshResult = { pts, rows: rows || 50, cols: cols || 50 };
-        },
-        sph2cart: (rho: number, theta: number, phi: number) => [
-          rho * Math.sin(phi) * Math.cos(theta),
-          rho * Math.sin(phi) * Math.sin(theta),
-          rho * Math.cos(phi),
-        ],
-        cyl2cart: (r: number, theta: number, z: number) => [r * Math.cos(theta), r * Math.sin(theta), z],
-      };
+      // Execute Python script synchronously
+      const pyResult = runPythonScriptSync(layer.script, scope);
 
-      const ctx = {
-        ...api,
-        Math,
-        sin: Math.sin,
-        cos: Math.cos,
-        sqrt: Math.sqrt,
-        exp: Math.exp,
-        abs: Math.abs,
-        log: Math.log,
-        PI: Math.PI,
-        E: Math.E,
-        pow: Math.pow,
-        atan2: Math.atan2,
-        floor: Math.floor,
-        ceil: Math.ceil,
-        round: Math.round,
-        random: Math.random,
-        min: Math.min,
-        max: Math.max,
-        Float32Array,
-        ...scope,
-      };
+      // 1. Render 3D Point Cloud / Scatter / Attractors
+      if (pyResult.points3d && pyResult.points3d.length > 0) {
+        const rawPoints = pyResult.points3d;
+        const count = Math.floor(rawPoints.length / 3);
+        const transformedPoints = new Float32Array(count * 3);
+        const cols = new Float32Array(count * 3);
 
-      const fn = new Function(...Object.keys(ctx), layer.script);
-      fn(...Object.values(ctx));
-
-      // render plot3d points
-      if (points3d.length > 0) {
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(points3d), 3));
-        const cols = new Float32Array(points3d.length);
-        const count = points3d.length / 3;
         for (let i = 0; i < count; i++) {
-          const c2 = base.clone().lerp(new THREE.Color(0xffffff), (i / count) * 0.5);
+          const rx = rawPoints[i * 3];
+          const ry = rawPoints[i * 3 + 1];
+          const rz = rawPoints[i * 3 + 2];
+          const p = mapMathToThree(rx, ry, rz, settings);
+          transformedPoints[i * 3] = p[0];
+          transformedPoints[i * 3 + 1] = p[1];
+          transformedPoints[i * 3 + 2] = p[2];
+
+          const c2 = base.clone().lerp(new THREE.Color(0xffffff), (i / count) * 0.45);
           cols[i * 3] = c2.r;
           cols[i * 3 + 1] = c2.g;
           cols[i * 3 + 2] = c2.b;
         }
+
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(transformedPoints, 3));
         geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-        grp.add(new THREE.Points(geo, new THREE.PointsMaterial({ vertexColors: true, size: 0.1 })));
+        grp.add(
+          new THREE.Points(
+            geo,
+            new THREE.PointsMaterial({
+              vertexColors: true,
+              size: 0.1,
+              transparent: true,
+              opacity: 0.9,
+            })
+          )
+        );
       }
 
-      // render plotSurface / plotSurfaceSph / plotSurfaceCyl
-      if (surfaceResult) {
-        const { mode, fn: sf } = surfaceResult as any;
-        let mesh: THREE.Mesh;
-        if (mode === 'sph') {
-          const stepT = (2 * Math.PI) / N;
-          const stepP = Math.PI / N;
-          mesh = makeGridSurfaceMesh(N, color, tintRatio, opacity, wireframe, (i, j) => {
-            const theta = i * stepT;
-            const phi = j * stepP;
-            let rho = 0;
-            try {
-              rho = sf(theta, phi);
-              if (!isFinite(rho)) rho = 0;
-            } catch {
-              rho = 0;
-            }
-            const x = rho * Math.sin(phi) * Math.cos(theta);
-            const y = rho * Math.sin(phi) * Math.sin(theta);
-            const z = rho * Math.cos(phi);
-            return { pos: mapMathToThree(x, y, z, settings), val: rho };
-          });
-        } else if (mode === 'cyl') {
-          const stepT = (2 * Math.PI) / N;
-          const stepZ = (zMax - zMin) / N;
-          mesh = makeGridSurfaceMesh(N, color, tintRatio, opacity, wireframe, (i, j) => {
-            const theta = i * stepT;
-            const z = zMin + j * stepZ;
-            let r = 0;
-            try {
-              r = sf(theta, z);
-              if (!isFinite(r)) r = 0;
-            } catch {
-              r = 0;
-            }
-            const x = r * Math.cos(theta);
-            const y = r * Math.sin(theta);
-            return { pos: mapMathToThree(x, y, z, settings), val: r };
-          });
-        } else {
-          const stepX = (xMax - xMin) / N;
-          const stepY = (yMax - yMin) / N;
-          mesh = makeGridSurfaceMesh(N, color, tintRatio, opacity, wireframe, (i, j) => {
-            const x = xMin + i * stepX;
-            const y = yMin + j * stepY;
-            let z = 0;
-            try {
-              z = sf(x, y);
-              if (!isFinite(z)) z = 0;
-            } catch {
-              z = 0;
-            }
-            return { pos: mapMathToThree(x, y, z, settings), val: z };
-          });
-        }
-        grp.add(mesh);
-      }
+      // 2. Render Python Surfaces (Cartesian, Spherical, Cylindrical, Parametric UV, NumPy Grid)
+      if (pyResult.surfaces && pyResult.surfaces.length > 0) {
+        pyResult.surfaces.forEach((surf) => {
+          if (surf.mode === 'sph' && surf.fn) {
+            const sf = surf.fn;
+            const stepT = (2 * Math.PI) / N;
+            const stepP = Math.PI / N;
+            const mesh = makeGridSurfaceMesh(N, color, tintRatio, opacity, wireframe, (i, j) => {
+              const theta = i * stepT;
+              const phi = j * stepP;
+              let rho = 0;
+              try {
+                rho = sf(theta, phi);
+                if (!isFinite(rho)) rho = 0;
+              } catch {
+                rho = 0;
+              }
+              const x = rho * Math.sin(phi) * Math.cos(theta);
+              const y = rho * Math.sin(phi) * Math.sin(theta);
+              const z = rho * Math.cos(phi);
+              return { pos: mapMathToThree(x, y, z, settings), val: rho };
+            });
+            grp.add(mesh);
+          } else if (surf.mode === 'cyl' && surf.fn) {
+            const sf = surf.fn;
+            const stepT = (2 * Math.PI) / N;
+            const stepZ = (zMax - zMin) / N;
+            const mesh = makeGridSurfaceMesh(N, color, tintRatio, opacity, wireframe, (i, j) => {
+              const theta = i * stepT;
+              const z = zMin + j * stepZ;
+              let r = 0;
+              try {
+                r = sf(theta, z);
+                if (!isFinite(r)) r = 0;
+              } catch {
+                r = 0;
+              }
+              const x = r * Math.cos(theta);
+              const y = r * Math.sin(theta);
+              return { pos: mapMathToThree(x, y, z, settings), val: r };
+            });
+            grp.add(mesh);
+          } else if (surf.mode === 'uv' && surf.uvFn) {
+            const uvFn = surf.uvFn;
+            const nu = surf.nu || N;
+            const nv = surf.nv || Math.max(16, Math.floor(N / 2));
+            const [uMin, uMax] = surf.uRange || [0, 2 * Math.PI];
+            const [vMin, vMax] = surf.vRange || [-1, 1];
+            const stepU = (uMax - uMin) / nu;
+            const stepV = (vMax - vMin) / nv;
 
-      // render plotCurve / plotCurveSph / plotCurveCyl
-      curveFns.forEach((computePoint) => {
-        grp.add(makeCurveLine(color, computePoint));
-      });
-
-      // render plotMesh
-      if (meshResult) {
-        const { pts, rows, cols: C } = meshResult as any;
-        const count = rows * C;
-        if (pts.length >= count * 3) {
-          const transformedPts = new Float32Array(count * 3);
-          for (let i = 0; i < count; i++) {
-            const rawX = pts[i * 3];
-            const rawZ = pts[i * 3 + 1];
-            const rawY = pts[i * 3 + 2];
-            const tp = mapMathToThree(rawX, rawY, rawZ, settings);
-            transformedPts[i * 3] = tp[0];
-            transformedPts[i * 3 + 1] = tp[1];
-            transformedPts[i * 3 + 2] = tp[2];
-          }
-
-          const geo = new THREE.BufferGeometry();
-          geo.setAttribute('position', new THREE.BufferAttribute(transformedPts, 3));
-          const idx: number[] = [];
-          for (let i = 0; i < rows - 1; i++) {
-            for (let j = 0; j < C - 1; j++) {
-              const a = i * C + j;
-              const b = a + 1;
-              const c = (i + 1) * C + j;
-              const d = c + 1;
-              idx.push(a, b, d, a, d, c);
-            }
-          }
-          geo.setIndex(idx);
-          geo.computeVertexNormals();
-          const colArr = new Float32Array(count * 3);
-          for (let i = 0; i < count; i++) {
-            const c2 = base.clone().lerp(new THREE.Color(0xffffff), (i / count) * 0.45);
-            colArr[i * 3] = c2.r;
-            colArr[i * 3 + 1] = c2.g;
-            colArr[i * 3 + 2] = c2.b;
-          }
-          geo.setAttribute('color', new THREE.BufferAttribute(colArr, 3));
-          grp.add(
-            new THREE.Mesh(
-              geo,
-              new THREE.MeshPhongMaterial({
-                vertexColors: true,
-                side: THREE.DoubleSide,
-                shininess: 55,
-                transparent: true,
+            const mesh = makeGridSurfaceMesh(
+              nu,
+              color,
+              tintRatio,
+              opacity,
+              wireframe,
+              (i, j) => {
+                const u = uMin + i * stepU;
+                const v = vMin + j * stepV;
+                let p: [number, number, number] = [0, 0, 0];
+                try {
+                  const res = uvFn(u, v);
+                  if (res && isFinite(res[0]) && isFinite(res[1]) && isFinite(res[2])) {
+                    p = res;
+                  }
+                } catch {
+                  // fallback to zero
+                }
+                return { pos: mapMathToThree(p[0], p[1], p[2], settings), val: p[2] };
+              },
+              nv
+            );
+            grp.add(mesh);
+          } else if (surf.mode === 'grid' && surf.grid) {
+            const { X, Y, Z } = surf.grid;
+            const rows = X.length;
+            const cols = X[0]?.length || 0;
+            if (rows > 1 && cols > 1) {
+              const mesh = makeGridSurfaceMesh(
+                rows - 1,
+                color,
+                tintRatio,
                 opacity,
                 wireframe,
+                (i, j) => {
+                  const x = Number(X[i]?.[j] ?? 0);
+                  const y = Number(Y[i]?.[j] ?? 0);
+                  const z = Number(Z[i]?.[j] ?? 0);
+                  return { pos: mapMathToThree(x, y, z, settings), val: z };
+                },
+                cols - 1
+              );
+              grp.add(mesh);
+            }
+          } else if (surf.fn) {
+            const sf = surf.fn;
+            const stepX = (xMax - xMin) / N;
+            const stepY = (yMax - yMin) / N;
+            const mesh = makeGridSurfaceMesh(N, color, tintRatio, opacity, wireframe, (i, j) => {
+              const x = xMin + i * stepX;
+              const y = yMin + j * stepY;
+              let z = 0;
+              try {
+                z = sf(x, y);
+                if (!isFinite(z)) z = 0;
+              } catch {
+                z = 0;
+              }
+              return { pos: mapMathToThree(x, y, z, settings), val: z };
+            });
+            grp.add(mesh);
+          }
+        });
+      }
+
+      // 3. Render Python 3D Space Curves
+      if (pyResult.curves && pyResult.curves.length > 0) {
+        pyResult.curves.forEach((curve) => {
+          if (curve.fn) {
+            const curveFn = curve.fn;
+            grp.add(
+              makeCurveLine(color, (t) => {
+                const r = curveFn(t);
+                if (!r) return null;
+                return mapMathToThree(r[0], r[1], r[2], settings);
               })
-            )
-          );
-        }
+            );
+          }
+        });
+      }
+
+      // 4. Render Python Custom Meshes
+      if (pyResult.meshes && pyResult.meshes.length > 0) {
+        pyResult.meshes.forEach((meshItem) => {
+          const { pts, rows, cols: C } = meshItem;
+          const count = rows * C;
+          const rawPts = pts instanceof Float32Array ? pts : new Float32Array(pts);
+
+          if (rawPts.length >= count * 3) {
+            const transformedPts = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) {
+              const rawX = rawPts[i * 3];
+              const rawZ = rawPts[i * 3 + 1];
+              const rawY = rawPts[i * 3 + 2];
+              const tp = mapMathToThree(rawX, rawY, rawZ, settings);
+              transformedPts[i * 3] = tp[0];
+              transformedPts[i * 3 + 1] = tp[1];
+              transformedPts[i * 3 + 2] = tp[2];
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(transformedPts, 3));
+            const idx: number[] = [];
+            for (let i = 0; i < rows - 1; i++) {
+              for (let j = 0; j < C - 1; j++) {
+                const a = i * C + j;
+                const b = a + 1;
+                const c = (i + 1) * C + j;
+                const d = c + 1;
+                idx.push(a, b, d, a, d, c);
+              }
+            }
+            geo.setIndex(idx);
+            geo.computeVertexNormals();
+            const colArr = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) {
+              const c2 = base.clone().lerp(new THREE.Color(0xffffff), (i / count) * 0.45);
+              colArr[i * 3] = c2.r;
+              colArr[i * 3 + 1] = c2.g;
+              colArr[i * 3 + 2] = c2.b;
+            }
+            geo.setAttribute('color', new THREE.BufferAttribute(colArr, 3));
+            grp.add(
+              new THREE.Mesh(
+                geo,
+                new THREE.MeshPhongMaterial({
+                  vertexColors: true,
+                  side: THREE.DoubleSide,
+                  shininess: 55,
+                  transparent: true,
+                  opacity,
+                  wireframe,
+                })
+              )
+            );
+          }
+        });
       }
 
       return grp;

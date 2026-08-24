@@ -10,6 +10,8 @@ interface LayerCardProps {
   onDelete: (id: number) => void;
   onDuplicate: (id: number) => void;
   onUpdate: (layer: LayerItem) => void;
+  onOpenFullIDE?: (id: number) => void;
+  onOpenSplitView?: (id: number) => void;
 }
 
 export const LayerCard: React.FC<LayerCardProps> = ({
@@ -18,6 +20,8 @@ export const LayerCard: React.FC<LayerCardProps> = ({
   onDelete,
   onDuplicate,
   onUpdate,
+  onOpenFullIDE,
+  onOpenSplitView,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const colorInputRef = useRef<HTMLInputElement>(null);
@@ -742,13 +746,17 @@ export const LayerCard: React.FC<LayerCardProps> = ({
           {/* Script Editor */}
           {layer.type === 'script' && (
             <div className="flex flex-col gap-1.5">
-              <span className="text-[10.5px] font-semibold text-slate-400">
-                Script Code (Syntax Highlighted):
+              <span className="text-[10.5px] font-semibold text-slate-400 flex items-center justify-between">
+                <span>Python Script Code:</span>
+                <span className="text-[10px] text-slate-500 font-mono">Python 3</span>
               </span>
               <ScriptCodeEditor
                 value={script}
                 onChange={setScript}
-                heightClass="min-h-[220px] h-[260px]"
+                heightClass="min-h-[240px] h-[280px]"
+                onOpenFullIDE={onOpenFullIDE ? () => onOpenFullIDE(layer.id) : undefined}
+                onOpenSplitView={onOpenSplitView ? () => onOpenSplitView(layer.id) : undefined}
+                showLayoutButtons={true}
               />
             </div>
           )}

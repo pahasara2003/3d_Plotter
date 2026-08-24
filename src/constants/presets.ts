@@ -14,89 +14,120 @@ export const PALETTE = [
 ];
 
 export const SCRIPT_PRESETS: Record<string, string> = {
-  sinc: `// Sinc 3D Surface
-plotSurface((x, y) => {
-  const r = Math.sqrt(x*x + y*y) + 0.001;
-  return (Math.sin(r) / r) * 3;
-});`,
-  densityDipole: `// Electric Dipole 3D Scalar Field (Density Particles)
-const N = 18;
-const q1 = [1.2, 0, 0], q2 = [-1.2, 0, 0];
-for (let x = -3; x <= 3; x += 6/N) {
-  for (let y = -3; y <= 3; y += 6/N) {
-    for (let z = -3; z <= 3; z += 6/N) {
-      const d1 = Math.hypot(x - q1[0], y - q1[1], z - q1[2]) + 0.1;
-      const d2 = Math.hypot(x - q2[0], y - q2[1], z - q2[2]) + 0.1;
-      const V = Math.abs(1/d1 - 1/d2);
-      if (V > 0.1) {
-        plot3d(x, y, z);
-      }
-    }
-  }
-}`,
-  lissajous: `// 3D Lissajous Knot Curve
-plotCurve(t => [
-  Math.sin(3*t + Math.PI/4),
-  Math.sin(2*t),
-  Math.cos(5*t) * 0.5
-]);`,
-  mobius: `// Parametric Möbius Strip
-const N = 60, M = 20;
-const pts = new Float32Array(N * M * 3);
-let k = 0;
-for (let i = 0; i < N; i++) {
-  for (let j = 0; j < M; j++) {
-    const u = 2 * Math.PI * i / N;
-    const v = (j / M - 0.5) * 2;
-    const x = (2 + v * Math.cos(u / 2)) * Math.cos(u);
-    const y = (2 + v * Math.cos(u / 2)) * Math.sin(u);
-    const z = v * Math.sin(u / 2);
-    pts[k++] = x;
-    pts[k++] = z;
-    pts[k++] = y;
-  }
-}
-plotMesh(pts, N, M);`,
-  lorenz: `// Lorenz Chaotic Attractor
-let x = 0.1, y = 0, z = 0;
-const s = 10, r = 28, b = 8/3, dt = 0.005;
-for (let i = 0; i < 8000; i++) {
-  const dx = s * (y - x);
-  const dy = x * (r - z) - y;
-  const dz = x * y - b * z;
-  x += dx * dt;
-  y += dy * dt;
-  z += dz * dt;
-  if (i > 200) {
-    plot3d(x * 0.2, y * 0.2, (z - 25) * 0.2);
-  }
-}`,
-  scatter: `// Random Spherical Gaussian Cloud
-for (let i = 0; i < 600; i++) {
-  const theta = Math.random() * 2 * Math.PI;
-  const phi = Math.acos(2 * Math.random() - 1);
-  const r = 1 + (Math.random() - 0.5) * 0.6;
-  plot3d(
-    r * Math.sin(phi) * Math.cos(theta),
-    r * Math.sin(phi) * Math.sin(theta),
-    r * Math.cos(phi)
-  );
-}`,
-  shell: `// Spherical Bumpy Shell
-plotSurfaceSph((theta, phi) => {
-  return 2 + 0.3 * Math.sin(5 * theta) * Math.sin(4 * phi);
-});`,
-  twistedcyl: `// Twisted Cylindrical Tube
-plotSurfaceCyl((theta, z) => {
-  return 1 + 0.25 * Math.sin(5 * theta + z);
-});`,
-  travelingWave: `// Time-Varying Traveling Circular Wave
-plotSurface((x, y) => {
-  const r = Math.sqrt(x*x + y*y);
-  return Math.sin(2 * r - t * 3) / (1 + 0.3 * r);
-});`,
-  breathingSph: `// Time-Varying Pulsating Multipole
-plotSurfaceSph((theta, phi) => {
-  return 2 + 0.5 * Math.sin(3 * theta + t * 2) * Math.sin(2 * phi - t);
-});`,
+  sinc: `# Sinc 3D Surface Generator
+import math
+
+def sinc_surface(x, y):
+    r = math.sqrt(x**2 + y**2) + 0.001
+    return (math.sin(r) / r) * 3.0
+
+plot_surface(sinc_surface)`,
+
+  lorenz: `# Lorenz Chaotic Attractor (Differential equations)
+x, y, z = 0.1, 0.0, 0.0
+sigma, rho, beta = 10.0, 28.0, 8.0 / 3.0
+dt = 0.005
+
+for i in range(8000):
+    dx = sigma * (y - x)
+    dy = x * (rho - z) - y
+    dz = x * y - beta * z
+    x += dx * dt
+    y += dy * dt
+    z += dz * dt
+    if i > 150:
+        plot3d(x * 0.2, y * 0.2, (z - 25.0) * 0.2)`,
+
+  mobius: `# Parametric Möbius Strip (UV Coordinate Surface)
+import math
+
+def mobius(u, v):
+    # u in [0, 2*pi], v in [-1, 1]
+    x = (2.0 + v * math.cos(u / 2.0)) * math.cos(u)
+    y = (2.0 + v * math.cos(u / 2.0)) * math.sin(u)
+    z = v * math.sin(u / 2.0)
+    return (x, y, z)
+
+plot_parametric_surface(mobius, u_range=(0, 2*math.pi), v_range=(-1, 1), nu=60, nv=20)`,
+
+  lissajous: `# 3D Lissajous Knot Space Curve
+import math
+
+def lissajous_knot(t):
+    return (
+        math.sin(3.0 * t + math.pi / 4.0),
+        math.sin(2.0 * t),
+        math.cos(5.0 * t) * 0.5
+    )
+
+plot_curve(lissajous_knot)`,
+
+  numpyRipple: `# NumPy Meshgrid 3D Wave
+import numpy as np
+
+# Generate coordinate meshgrid
+x = np.linspace(-5, 5, 45)
+y = np.linspace(-5, 5, 45)
+X, Y = np.meshgrid(x, y)
+
+Z = []
+for i in range(len(y)):
+    row = []
+    for j in range(len(x)):
+        r = np.sqrt(X[i][j]**2 + Y[i][j]**2) + 0.001
+        row.append(np.sin(2.0 * r) / (1.0 + 0.3 * r))
+    Z.append(row)
+
+plot_grid(X, Y, Z)`,
+
+  scatter: `# Gaussian Random Spherical Particle Cloud
+import math
+import random
+
+for i in range(700):
+    theta = random.random() * 2.0 * math.pi
+    phi = math.acos(2.0 * random.random() - 1.0)
+    r = 1.8 + (random.random() - 0.5) * 0.8
+    plot3d(
+        r * math.sin(phi) * math.cos(theta),
+        r * math.sin(phi) * math.sin(theta),
+        r * math.cos(phi)
+    )`,
+
+  shell: `# Spherical Harmonics Bumpy Shell
+import math
+
+def bumpy_shell(theta, phi):
+    return 2.0 + 0.35 * math.sin(5.0 * theta) * math.sin(4.0 * phi)
+
+plot_surface_sph(bumpy_shell)`,
+
+  twistedcyl: `# Twisted Cylindrical Surface
+import math
+
+def twisted_tube(theta, z):
+    return 1.2 + 0.3 * math.sin(5.0 * theta + z)
+
+plot_surface_cyl(twisted_tube)`,
+
+  travelingWave: `# Time-Varying Traveling Wave (Animates with 't')
+import math
+
+def wave(x, y):
+    r = math.sqrt(x**2 + y**2)
+    return math.sin(2.0 * r - t * 3.0) / (1.0 + 0.3 * r)
+
+plot_surface(wave)`,
+
+  torus: `# Parametric Torus Ring
+import math
+
+def torus(u, v):
+    R, r = 2.5, 0.8
+    x = (R + r * math.cos(v)) * math.cos(u)
+    y = (R + r * math.cos(v)) * math.sin(u)
+    z = r * math.sin(v)
+    return (x, y, z)
+
+plot_parametric_surface(torus, u_range=(0, 2*math.pi), v_range=(0, 2*math.pi), nu=50, nv=30)`,
 };
