@@ -94,21 +94,21 @@ for i in range(700):
         r * math.cos(phi)
     )`,
 
-  shell: `# Spherical Harmonics Bumpy Shell
+  shell: `# Spherical Harmonics Bumpy Shell r(theta, psi)
 import math
 
-def bumpy_shell(theta, phi):
-    return 2.0 + 0.35 * math.sin(5.0 * theta) * math.sin(4.0 * phi)
+def bumpy_shell(theta, psi):
+    return 2.0 + 0.35 * math.sin(5.0 * theta) * math.sin(4.0 * psi)
 
 plot_surface_sph(bumpy_shell)`,
 
-  twistedcyl: `# Twisted Cylindrical Surface
+  twistedcyl: `# Polar Ripple Cylindrical Surface z(rho, theta)
 import math
 
-def twisted_tube(theta, z):
-    return 1.2 + 0.3 * math.sin(5.0 * theta + z)
+def polar_ripple(rho, theta):
+    return math.cos(rho * 2.0) / (1.0 + 0.2 * rho)
 
-plot_surface_cyl(twisted_tube)`,
+plot_surface_cyl(polar_ripple)`,
 
   travelingWave: `# Time-Varying Traveling Wave (Animates with 't')
 import math

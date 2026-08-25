@@ -369,14 +369,14 @@ export function buildDensityPlotObject(
 
           try {
             if (isSph) {
-              const rho = Math.sqrt(x * x + y * y + z * z);
+              const r = Math.sqrt(x * x + y * y + z * z);
               const theta = Math.atan2(y, x);
-              const phi = Math.acos(Math.max(-1, Math.min(1, z / (rho + 1e-7))));
-              val = fastFn(scope, x, y, z, scope.t, theta, phi, rho);
+              const psi = Math.acos(Math.max(-1, Math.min(1, z / (r + 1e-7))));
+              val = fastFn(scope, x, y, z, scope.t, theta, psi, undefined, r);
             } else if (isCyl) {
-              const r = Math.sqrt(x * x + y * y);
+              const rho = Math.sqrt(x * x + y * y);
               const theta = Math.atan2(y, x);
-              val = fastFn(scope, x, y, z, scope.t, theta, undefined, undefined, r);
+              val = fastFn(scope, x, y, z, scope.t, theta, undefined, rho);
             } else {
               val = fastFn(scope, x, y, z, scope.t);
             }
@@ -883,20 +883,20 @@ export function buildShapeObject(
 
   const coordSystem = layer.shapeCoordSystem || 'cart';
   if (coordSystem === 'sph') {
-    // Spherical coordinates: c1 = rho (radius), c2 = theta (azimuth), c3 = phi (inclination from +z)
-    const rho = c1;
-    const theta = c2;
-    const phi = c3;
-    cx = rho * Math.sin(phi) * Math.cos(theta);
-    cy = rho * Math.sin(phi) * Math.sin(theta);
-    cz = rho * Math.cos(phi);
-  } else if (coordSystem === 'cyl') {
-    // Cylindrical coordinates: c1 = r, c2 = theta, c3 = z
+    // Spherical coordinates: c1 = r (radius), c2 = theta (azimuth), c3 = psi (polar inclination from +z)
     const rVal = c1;
     const theta = c2;
+    const psi = c3;
+    cx = rVal * Math.sin(psi) * Math.cos(theta);
+    cy = rVal * Math.sin(psi) * Math.sin(theta);
+    cz = rVal * Math.cos(psi);
+  } else if (coordSystem === 'cyl') {
+    // Cylindrical coordinates: c1 = rho (radius in xy-plane), c2 = theta (azimuth), c3 = z (height)
+    const rhoVal = c1;
+    const theta = c2;
     const zVal = c3;
-    cx = rVal * Math.cos(theta);
-    cy = rVal * Math.sin(theta);
+    cx = rhoVal * Math.cos(theta);
+    cy = rhoVal * Math.sin(theta);
     cz = zVal;
   }
 
@@ -1060,40 +1060,41 @@ export function buildLayerThreeObject(
       const stepP = Math.PI / N;
       return makeGridSurfaceMesh(N, layer.color, tintRatio, opacity, wireframe, (i, j) => {
         const theta = i * stepT;
-        const phi = j * stepP;
-        let rho = 0;
+        const psi = j * stepP;
+        let r = 0;
         try {
-          rho = evalSph(scope, undefined, undefined, undefined, undefined, theta, phi, undefined, undefined);
-          if (!isFinite(rho)) rho = 0;
+          r = evalSph(scope, undefined, undefined, undefined, undefined, theta, psi, undefined, undefined);
+          if (!isFinite(r)) r = 0;
         } catch {
-          rho = 0;
+          r = 0;
         }
-        const x = rho * Math.sin(phi) * Math.cos(theta);
-        const y = rho * Math.sin(phi) * Math.sin(theta);
-        const z = rho * Math.cos(phi);
+        const x = r * Math.sin(psi) * Math.cos(theta);
+        const y = r * Math.sin(psi) * Math.sin(theta);
+        const z = r * Math.cos(psi);
         const pos = mapMathToThree(x, y, z, settings);
-        return { pos, val: rho };
+        return { pos, val: r };
       });
     }
 
     if (layer.type === 'cylindrical' && layer.eq) {
       const evalCyl = getFastEvaluator(layer.eq);
+      const maxRho = layer.R || Math.max(Math.abs(xMax), Math.abs(yMax)) || 8;
+      const stepRho = maxRho / N;
       const stepT = (2 * Math.PI) / N;
-      const stepZ = (zMax - zMin) / N;
       return makeGridSurfaceMesh(N, layer.color, tintRatio, opacity, wireframe, (i, j) => {
-        const theta = i * stepT;
-        const z = zMin + j * stepZ;
-        let r = 0;
+        const rho = i * stepRho;
+        const theta = j * stepT;
+        let z = 0;
         try {
-          r = evalCyl(scope, undefined, undefined, z, undefined, theta);
-          if (!isFinite(r)) r = 0;
+          z = evalCyl(scope, undefined, undefined, undefined, undefined, theta, undefined, rho);
+          if (!isFinite(z)) z = 0;
         } catch {
-          r = 0;
+          z = 0;
         }
-        const x = r * Math.cos(theta);
-        const y = r * Math.sin(theta);
+        const x = rho * Math.cos(theta);
+        const y = rho * Math.sin(theta);
         const pos = mapMathToThree(x, y, z, settings);
-        return { pos, val: r };
+        return { pos, val: z };
       });
     }
 
@@ -1149,20 +1150,19 @@ export function buildLayerThreeObject(
 
       const evalField = (x: number, y: number, z: number): [number, number, number] | null => {
         try {
-          const rho = Math.sqrt(x * x + y * y + z * z);
-          if (rho < 1e-6) return null;
-          const rxy = Math.sqrt(x * x + y * y);
+          const r = Math.sqrt(x * x + y * y + z * z);
+          if (r < 1e-6) return null;
           let theta = Math.atan2(y, x);
           if (theta < 0) theta += 2 * Math.PI;
-          const phi = Math.acos(Math.max(-1, Math.min(1, z / rho)));
+          const psi = Math.acos(Math.max(-1, Math.min(1, z / r)));
 
-          const frV = evalFr(scope, undefined, undefined, undefined, undefined, theta, phi, rho);
-          const ftV = evalFt(scope, undefined, undefined, undefined, undefined, theta, phi, rho);
-          const fpV = evalFp(scope, undefined, undefined, undefined, undefined, theta, phi, rho);
+          const frV = evalFr(scope, undefined, undefined, undefined, undefined, theta, psi, undefined, r);
+          const ftV = evalFt(scope, undefined, undefined, undefined, undefined, theta, psi, undefined, r);
+          const fpV = evalFp(scope, undefined, undefined, undefined, undefined, theta, psi, undefined, r);
           if (!isFinite(frV) || !isFinite(ftV) || !isFinite(fpV)) return null;
 
-          const sinP = Math.sin(phi);
-          const cosP = Math.cos(phi);
+          const sinP = Math.sin(psi);
+          const cosP = Math.cos(psi);
           const sinT = Math.sin(theta);
           const cosT = Math.cos(theta);
 
@@ -1201,13 +1201,13 @@ export function buildLayerThreeObject(
 
       const evalField = (x: number, y: number, z: number): [number, number, number] | null => {
         try {
-          const r = Math.sqrt(x * x + y * y);
+          const rho = Math.sqrt(x * x + y * y);
           let theta = Math.atan2(y, x);
           if (theta < 0) theta += 2 * Math.PI;
 
-          const frV = evalFr(scope, undefined, undefined, z, undefined, theta, undefined, undefined, r);
-          const ftV = evalFt(scope, undefined, undefined, z, undefined, theta, undefined, undefined, r);
-          const fzV = evalFz(scope, undefined, undefined, z, undefined, theta, undefined, undefined, r);
+          const frV = evalFr(scope, undefined, undefined, z, undefined, theta, undefined, rho);
+          const ftV = evalFt(scope, undefined, undefined, z, undefined, theta, undefined, rho);
+          const fzV = evalFz(scope, undefined, undefined, z, undefined, theta, undefined, rho);
           if (!isFinite(frV) || !isFinite(ftV) || !isFinite(fzV)) return null;
 
           const cosT = Math.cos(theta);
@@ -1244,32 +1244,32 @@ export function buildLayerThreeObject(
     }
 
     if (layer.type === 'paramSph' && layer.pRho && layer.pTheta && layer.pPhi) {
-      const evalRho = getFastEvaluator(layer.pRho);
+      const evalR = getFastEvaluator(layer.pRho);
       const evalTheta = getFastEvaluator(layer.pTheta);
-      const evalPhi = getFastEvaluator(layer.pPhi);
+      const evalPsi = getFastEvaluator(layer.pPhi);
       return makeCurveLine(layer.color, (tVal) => {
-        const rho = evalRho(scope, 0, 0, 0, tVal);
+        const r = evalR(scope, 0, 0, 0, tVal);
         const theta = evalTheta(scope, 0, 0, 0, tVal);
-        const phi = evalPhi(scope, 0, 0, 0, tVal);
-        if (!isFinite(rho) || !isFinite(theta) || !isFinite(phi)) return null;
-        const x = rho * Math.sin(phi) * Math.cos(theta);
-        const y = rho * Math.sin(phi) * Math.sin(theta);
-        const z = rho * Math.cos(phi);
+        const psi = evalPsi(scope, 0, 0, 0, tVal);
+        if (!isFinite(r) || !isFinite(theta) || !isFinite(psi)) return null;
+        const x = r * Math.sin(psi) * Math.cos(theta);
+        const y = r * Math.sin(psi) * Math.sin(theta);
+        const z = r * Math.cos(psi);
         return mapMathToThree(x, y, z, settings);
       });
     }
 
     if (layer.type === 'paramCyl' && layer.pR && layer.pThetaC && layer.pZ) {
-      const evalR = getFastEvaluator(layer.pR);
+      const evalRho = getFastEvaluator(layer.pR);
       const evalTheta = getFastEvaluator(layer.pThetaC);
       const evalZ = getFastEvaluator(layer.pZ);
       return makeCurveLine(layer.color, (tVal) => {
-        const r = evalR(scope, 0, 0, 0, tVal);
+        const rho = evalRho(scope, 0, 0, 0, tVal);
         const theta = evalTheta(scope, 0, 0, 0, tVal);
         const z = evalZ(scope, 0, 0, 0, tVal);
-        if (!isFinite(r) || !isFinite(theta) || !isFinite(z)) return null;
-        const x = r * Math.cos(theta);
-        const y = r * Math.sin(theta);
+        if (!isFinite(rho) || !isFinite(theta) || !isFinite(z)) return null;
+        const x = rho * Math.cos(theta);
+        const y = rho * Math.sin(theta);
         return mapMathToThree(x, y, z, settings);
       });
     }
@@ -1329,37 +1329,38 @@ export function buildLayerThreeObject(
             const stepP = Math.PI / N;
             const mesh = makeGridSurfaceMesh(N, color, tintRatio, opacity, wireframe, (i, j) => {
               const theta = i * stepT;
-              const phi = j * stepP;
-              let rho = 0;
-              try {
-                rho = sf(theta, phi);
-                if (!isFinite(rho)) rho = 0;
-              } catch {
-                rho = 0;
-              }
-              const x = rho * Math.sin(phi) * Math.cos(theta);
-              const y = rho * Math.sin(phi) * Math.sin(theta);
-              const z = rho * Math.cos(phi);
-              return { pos: mapMathToThree(x, y, z, settings), val: rho };
-            });
-            grp.add(mesh);
-          } else if (surf.mode === 'cyl' && surf.fn) {
-            const sf = surf.fn;
-            const stepT = (2 * Math.PI) / N;
-            const stepZ = (zMax - zMin) / N;
-            const mesh = makeGridSurfaceMesh(N, color, tintRatio, opacity, wireframe, (i, j) => {
-              const theta = i * stepT;
-              const z = zMin + j * stepZ;
+              const psi = j * stepP;
               let r = 0;
               try {
-                r = sf(theta, z);
+                r = sf(theta, psi);
                 if (!isFinite(r)) r = 0;
               } catch {
                 r = 0;
               }
-              const x = r * Math.cos(theta);
-              const y = r * Math.sin(theta);
+              const x = r * Math.sin(psi) * Math.cos(theta);
+              const y = r * Math.sin(psi) * Math.sin(theta);
+              const z = r * Math.cos(psi);
               return { pos: mapMathToThree(x, y, z, settings), val: r };
+            });
+            grp.add(mesh);
+          } else if (surf.mode === 'cyl' && surf.fn) {
+            const sf = surf.fn;
+            const maxRho = layer.R || Math.max(Math.abs(xMax), Math.abs(yMax)) || 8;
+            const stepRho = maxRho / N;
+            const stepT = (2 * Math.PI) / N;
+            const mesh = makeGridSurfaceMesh(N, color, tintRatio, opacity, wireframe, (i, j) => {
+              const rho = i * stepRho;
+              const theta = j * stepT;
+              let z = 0;
+              try {
+                z = sf(rho, theta);
+                if (!isFinite(z)) z = 0;
+              } catch {
+                z = 0;
+              }
+              const x = rho * Math.cos(theta);
+              const y = rho * Math.sin(theta);
+              return { pos: mapMathToThree(x, y, z, settings), val: z };
             });
             grp.add(mesh);
           } else if (surf.mode === 'uv' && surf.uvFn) {

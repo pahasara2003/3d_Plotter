@@ -187,11 +187,11 @@ function runFastPythonEvaluator(
           fn: (t) => {
             const res = fn(t);
             if (!res) return null;
-            const [rho, theta, phi] = res;
+            const [r, theta, psi] = res;
             return [
-              rho * Math.sin(phi) * Math.cos(theta),
-              rho * Math.sin(phi) * Math.sin(theta),
-              rho * Math.cos(phi),
+              r * Math.sin(psi) * Math.cos(theta),
+              r * Math.sin(psi) * Math.sin(theta),
+              r * Math.cos(psi),
             ];
           },
         });
@@ -206,8 +206,8 @@ function runFastPythonEvaluator(
           fn: (t) => {
             const res = fn(t);
             if (!res) return null;
-            const [r, theta, z] = res;
-            return [r * Math.cos(theta), r * Math.sin(theta), z];
+            const [rho, theta, z] = res;
+            return [rho * Math.cos(theta), rho * Math.sin(theta), z];
           },
         });
       }
@@ -260,14 +260,14 @@ function runFastPythonEvaluator(
     plotMesh: (pts: any, rows: number, cols: number) => {
       api.plot_mesh(pts, rows, cols);
     },
-    sph2cart: (rho: number, theta: number, phi: number) => [
-      rho * Math.sin(phi) * Math.cos(theta),
-      rho * Math.sin(phi) * Math.sin(theta),
-      rho * Math.cos(phi),
+    sph2cart: (r: number, theta: number, psi: number) => [
+      r * Math.sin(psi) * Math.cos(theta),
+      r * Math.sin(psi) * Math.sin(theta),
+      r * Math.cos(psi),
     ],
-    cyl2cart: (r: number, theta: number, z: number) => [
-      r * Math.cos(theta),
-      r * Math.sin(theta),
+    cyl2cart: (rho: number, theta: number, z: number) => [
+      rho * Math.cos(theta),
+      rho * Math.sin(theta),
       z,
     ],
   };

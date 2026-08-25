@@ -10,6 +10,7 @@ export const RESERVED_VARS = new Set([
   't',
   'r',
   'theta',
+  'psi',
   'phi',
   'rho',
   'pi',
@@ -50,8 +51,10 @@ export function latexToInfix(latex: string): string {
   let s = latex.trim();
 
   // Strip delimiter and spacing commands first so they do not trigger false implicit multiplication
-  s = s.replace(/\\left\b/g, '');
-  s = s.replace(/\\right\b/g, '');
+  s = s.replace(/\\left\s*\|/g, '|');
+  s = s.replace(/\\right\s*\|/g, '|');
+  s = s.replace(/\\left/g, '');
+  s = s.replace(/\\right/g, '');
   s = s.replace(/\\,/g, ' ');
   s = s.replace(/\\:/g, ' ');
   s = s.replace(/\\;/g, ' ');
@@ -145,7 +148,8 @@ export function latexToInfix(latex: string): string {
   // Common math symbols and constants
   s = s.replace(/\\pi\b/g, 'pi');
   s = s.replace(/\\theta\b/g, 'theta');
-  s = s.replace(/\\phi\b/g, 'phi');
+  s = s.replace(/\\psi\b/g, 'psi');
+  s = s.replace(/\\phi\b/g, 'psi');
   s = s.replace(/\\rho\b/g, 'rho');
   s = s.replace(/\\alpha\b/g, 'alpha');
   s = s.replace(/\\beta\b/g, 'beta');
@@ -265,7 +269,7 @@ export function typeLabel(t: string): string {
     surface: 'surface',
     spherical: 'spherical',
     cylindrical: 'cylindrical',
-    field: 'field',
+    field: 'field 3d',
     fieldSph: 'field·sph',
     fieldCyl: 'field·cyl',
     param: 'param',
@@ -282,8 +286,8 @@ export function typeLabel(t: string): string {
 
 export function buildLatexDisplay(l: LayerItem): string {
   if (l.type === 'surface') return 'z = ' + toLatex(l.eq);
-  if (l.type === 'spherical') return '\\rho = ' + toLatex(l.eq);
-  if (l.type === 'cylindrical') return 'r = ' + toLatex(l.eq);
+  if (l.type === 'spherical') return 'r = ' + toLatex(l.eq);
+  if (l.type === 'cylindrical') return 'z = ' + toLatex(l.eq);
   if (l.type === 'field' || l.type === 'fieldSph' || l.type === 'fieldCyl') {
     const raw = l.eq?.trim() || '';
     const m = raw.match(/^\[(.+),(.+),(.+)\]$/);
@@ -294,11 +298,11 @@ export function buildLatexDisplay(l: LayerItem): string {
     return toLatex(raw);
   }
   if (l.type === 'param') return `x=${toLatex(l.px)},\\;y=${toLatex(l.py)},\\;z=${toLatex(l.pz)}`;
-  if (l.type === 'paramSph') return `\\rho=${toLatex(l.pRho)},\\;\\theta=${toLatex(l.pTheta)},\\;\\phi=${toLatex(l.pPhi)}`;
-  if (l.type === 'paramCyl') return `r=${toLatex(l.pR)},\\;\\theta=${toLatex(l.pThetaC)},\\;z=${toLatex(l.pZ)}`;
+  if (l.type === 'paramSph') return `r=${toLatex(l.pRho)},\\;\\theta=${toLatex(l.pTheta)},\\;\\psi=${toLatex(l.pPhi)}`;
+  if (l.type === 'paramCyl') return `\\rho=${toLatex(l.pR)},\\;\\theta=${toLatex(l.pThetaC)},\\;z=${toLatex(l.pZ)}`;
   if (l.type === 'density') return `V(x,y,z) = ${toLatex(l.eq)}`;
-  if (l.type === 'densitySph') return `V(\\rho,\\theta,\\phi) = ${toLatex(l.eq)}`;
-  if (l.type === 'densityCyl') return `V(r,\\theta,z) = ${toLatex(l.eq)}`;
+  if (l.type === 'densitySph') return `V(r,\\theta,\\psi) = ${toLatex(l.eq)}`;
+  if (l.type === 'densityCyl') return `V(\\rho,\\theta,z) = ${toLatex(l.eq)}`;
   if (l.type === 'shape') {
     const st = l.shapeType || 'sphere';
     const coordSystem = l.shapeCoordSystem || 'cart';
@@ -393,7 +397,7 @@ export type FastEvalFn = (
   z?: number,
   t?: number,
   theta?: number,
-  phi?: number,
+  psi?: number,
   rho?: number,
   r?: number
 ) => number;
@@ -426,7 +430,7 @@ export function getFastEvaluator(expr: string): FastEvalFn {
         if (name === 't') return '(t !== undefined ? t : (scope.t ?? scope.time ?? 0))';
         if (name === 'time') return '(scope.time ?? scope.t ?? 0)';
         if (name === 'theta') return '(theta !== undefined ? theta : (scope.theta ?? 0))';
-        if (name === 'phi') return '(phi !== undefined ? phi : (scope.phi ?? 0))';
+        if (name === 'psi' || name === 'phi') return '(psi !== undefined ? psi : (scope.psi ?? scope.phi ?? 0))';
         if (name === 'rho') return '(rho !== undefined ? rho : (scope.rho ?? 0))';
         if (name === 'r') return '(r !== undefined ? r : (scope.r ?? 0))';
         return `(scope['${name}'] ?? 0)`;

@@ -34,6 +34,43 @@ code, pre, .font-mono, input.font-mono, textarea.font-mono {
   font-size: 0.9em !important;
 }
 
+/* MathLive Dark Theme Configuration */
+math-field {
+  --caret-color: #818cf8;
+  --selection-background-color: rgba(99, 102, 241, 0.35);
+  --selection-color: #ffffff;
+  --placeholder-color: #64748b;
+  --smart-fence-opacity: 0.75;
+  --keyboard-zindex: 9999;
+  color: #f8fafc;
+}
+
+/* MathLive Virtual Keyboard Dark Theme Override */
+:root {
+  --keyboard-zindex: 9999;
+}
+
+.ML__keyboard,
+math-virtual-keyboard,
+.MLK__backdrop {
+  --keyboard-background: #121218 !important;
+  --keyboard-toolbar-text: #cbd5e1 !important;
+  --keyboard-toolbar-text-active: #818cf8 !important;
+  --keyboard-toolbar-background: #181822 !important;
+  --keycap-background: #1e1e28 !important;
+  --keycap-background-active: #312e81 !important;
+  --keycap-background-hover: #262634 !important;
+  --keycap-text: #f8fafc !important;
+  --keycap-secondary-text: #94a3b8 !important;
+  --keycap-border: rgba(255, 255, 255, 0.08) !important;
+  --keycap-border-bottom: #09090d !important;
+  --keycap-modifier-background: #16161f !important;
+  --keycap-modifier-text: #a5b4fc !important;
+  --keycap-modifier-background-active: #4338ca !important;
+  --keycap-shift-color: #818cf8 !important;
+  --keycap-active-background: #4f46e5 !important;
+}
+
 /* Custom smooth scrollbar */
 ::-webkit-scrollbar {
   width: 5px;

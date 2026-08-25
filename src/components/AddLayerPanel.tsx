@@ -55,12 +55,12 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
   // Surface equations
   const [surfEq, setSurfEq] = useState('sin(sqrt(x^2+y^2))');
   const [sphEq, setSphEq] = useState('2');
-  const [cylEq, setCylEq] = useState('1');
+  const [cylEq, setCylEq] = useState('cos(rho*2)/(1 + 0.2*rho)');
 
   // Density 3D scalar potential field equations
   const [densityEq, setDensityEq] = useState('exp(-sqrt(x^2+y^2+z^2)*0.8) * abs(2*z^2 - x^2 - y^2)^1.2');
-  const [densitySphEq, setDensitySphEq] = useState('rho^2 * exp(-rho/1.5) * abs(3*cos(phi)^2 - 1)');
-  const [densityCylEq, setDensityCylEq] = useState('exp(-(r^2+z^2)/4) * abs(cos(2*theta))');
+  const [densitySphEq, setDensitySphEq] = useState('r^2 * exp(-r/1.5) * abs(3*cos(psi)^2 - 1)');
+  const [densityCylEq, setDensityCylEq] = useState('exp(-(rho^2+z^2)/4) * abs(cos(2*theta))');
   const [densityColormap, setDensityColormap] = useState('thermal');
   const [densityThreshold, setDensityThreshold] = useState(0.06);
   const [densityCoreIso, setDensityCoreIso] = useState(0.75);
@@ -224,10 +224,10 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
       layerData.name = computedName || layerData.eq;
     } else if (type === 'spherical') {
       layerData.eq = sphEq.trim();
-      layerData.name = computedName || `ρ = ${layerData.eq}`;
+      layerData.name = computedName || `r = ${layerData.eq}`;
     } else if (type === 'cylindrical') {
       layerData.eq = cylEq.trim();
-      layerData.name = computedName || `r = ${layerData.eq}`;
+      layerData.name = computedName || `z = ${layerData.eq}`;
     } else if (type === 'density') {
       layerData.eq = densityEq.trim();
       layerData.colorMap = densityColormap;
@@ -282,12 +282,12 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
       layerData.pRho = pRho.trim();
       layerData.pTheta = pTheta.trim();
       layerData.pPhi = pPhi.trim();
-      layerData.name = computedName || `ρ,θ,φ = ${layerData.pRho}, ${layerData.pTheta}, ${layerData.pPhi}`;
+      layerData.name = computedName || `r,θ,ψ = ${layerData.pRho}, ${layerData.pTheta}, ${layerData.pPhi}`;
     } else if (type === 'paramCyl') {
       layerData.pR = pR.trim();
       layerData.pThetaC = pThetaC.trim();
       layerData.pZ = pZ.trim();
-      layerData.name = computedName || `r,θ,z = ${layerData.pR}, ${layerData.pThetaC}, ${layerData.pZ}`;
+      layerData.name = computedName || `ρ,θ,z = ${layerData.pR}, ${layerData.pThetaC}, ${layerData.pZ}`;
     } else if (type === 'shape') {
       layerData.shapeType = shapeType;
       layerData.shapeRadius = shapeRadius;
@@ -426,8 +426,8 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
               {(['cart', 'sph', 'cyl'] as SchemeType[]).map((sch) => {
                 const labels: Record<SchemeType, string> = {
                   cart: 'Cartesian (x,y,z)',
-                  sph: 'Spherical (ρ,θ,φ)',
-                  cyl: 'Cylindrical (r,θ,z)',
+                  sph: 'Spherical (r,θ,ψ)',
+                  cyl: 'Cylindrical (ρ,θ,z)',
                 };
                 const isActive = curScheme === sch;
                 return (
@@ -491,22 +491,22 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
               <>
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-300 font-mono">
-                    ρ(θ, φ) · θ∈[0, 2π], φ∈[0, π]
+                    r(θ, ψ) · θ∈[0, 2π], ψ∈[0, π]
                   </span>
                   <span className="text-[10px] text-slate-500">Spherical Surface</span>
                 </div>
                 <VisualMathField
                   value={sphEq}
                   onChange={setSphEq}
-                  prefixLabel="ρ ="
+                  prefixLabel="r ="
                   placeholder="2"
                 />
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {[
                     { label: 'Sphere', eq: '2' },
-                    { label: 'Bumpy', eq: '2 + 0.5*sin(4*theta)*cos(3*phi)' },
-                    { label: 'Heart', eq: '2 - 2*sin(theta)*sqrt(abs(cos(phi)))' },
-                    { label: 'Harmonic', eq: '1.5 + 0.8*cos(3*theta)*sin(2*phi)' },
+                    { label: 'Bumpy', eq: '2 + 0.5*sin(4*theta)*cos(3*psi)' },
+                    { label: 'Heart', eq: '2 - 2*sin(theta)*sqrt(abs(cos(psi)))' },
+                    { label: 'Harmonic', eq: '1.5 + 0.8*cos(3*theta)*sin(2*psi)' },
                   ].map((p) => (
                     <button
                       key={p.label}
@@ -525,22 +525,24 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
               <>
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-300 font-mono">
-                    r(θ, z) · θ∈[0, 2π], z∈[-R, R]
+                    z(ρ, θ) · ρ∈[0, R], θ∈[0, 2π]
                   </span>
                   <span className="text-[10px] text-slate-500">Cylindrical Surface</span>
                 </div>
                 <VisualMathField
                   value={cylEq}
                   onChange={setCylEq}
-                  prefixLabel="r ="
-                  placeholder="1"
+                  prefixLabel="z ="
+                  placeholder="cos(rho*2)/(1 + 0.2*rho)"
                 />
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {[
-                    { label: 'Cylinder', eq: '1' },
-                    { label: 'Cone', eq: 'z' },
-                    { label: 'Hourglass', eq: '1 + 0.3*z^2' },
-                    { label: 'Fluted Column', eq: '1 + 0.2*cos(6*theta)' },
+                    { label: 'Polar Ripple', eq: 'cos(rho*2)/(1 + 0.2*rho)' },
+                    { label: 'Paraboloid', eq: 'rho^2/4 - 2' },
+                    { label: 'Sombrero', eq: 'sin(rho*3)/(rho + 0.5)' },
+                    { label: 'Polar Waves', eq: 'sin(4*theta)*exp(-rho/3)' },
+                    { label: 'Cone', eq: 'rho' },
+                    { label: 'Spiral Screw', eq: 'theta/(2*pi)*3 - 1.5' },
                   ].map((p) => (
                     <button
                       key={p.label}
@@ -618,7 +620,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
               <>
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-300 font-mono">
-                    V(ρ, θ, φ) · Spherical Scalar Field
+                    V(r, θ, ψ) · Spherical Scalar Field
                   </span>
                   <span className="text-[10px] text-violet-400 font-mono">Continuous Volume</span>
                 </div>
@@ -626,14 +628,14 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                   value={densitySphEq}
                   onChange={setDensitySphEq}
                   prefixLabel="V ="
-                  placeholder="rho^2 * exp(-rho/1.5) * abs(3*cos(phi)^2 - 1)"
+                  placeholder="r^2 * exp(-r/1.5) * abs(3*cos(psi)^2 - 1)"
                 />
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {[
-                    { label: 'dz² Orbital (Lobes + Torus)', eq: 'rho^2 * exp(-rho/1.5) * abs(3*cos(phi)^2 - 1)' },
-                    { label: 'dxz Orbital', eq: 'rho^2 * exp(-rho/1.5) * abs(sin(phi)*cos(phi)*cos(theta))' },
-                    { label: 'Radial Shells', eq: 'abs(sin(rho*2)) / (rho + 0.2)' },
-                    { label: 'Spherical Harmonic', eq: 'abs(sin(2*theta)*cos(phi)) * exp(-rho/3)' },
+                    { label: 'dz² Orbital (Lobes + Torus)', eq: 'r^2 * exp(-r/1.5) * abs(3*cos(psi)^2 - 1)' },
+                    { label: 'dxz Orbital', eq: 'r^2 * exp(-r/1.5) * abs(sin(psi)*cos(psi)*cos(theta))' },
+                    { label: 'Radial Shells', eq: 'abs(sin(r*2)) / (r + 0.2)' },
+                    { label: 'Spherical Harmonic', eq: 'abs(sin(2*theta)*cos(psi)) * exp(-r/3)' },
                   ].map((p) => (
                     <button
                       key={p.label}
@@ -652,7 +654,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
               <>
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-300 font-mono">
-                    V(r, θ, z) · Cylindrical Scalar Field
+                    V(ρ, θ, z) · Cylindrical Scalar Field
                   </span>
                   <span className="text-[10px] text-violet-400 font-mono">Continuous Volume</span>
                 </div>
@@ -660,13 +662,13 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                   value={densityCylEq}
                   onChange={setDensityCylEq}
                   prefixLabel="V ="
-                  placeholder="exp(-(r^2+z^2)/4) * abs(cos(2*theta))"
+                  placeholder="exp(-(rho^2+z^2)/4) * abs(cos(2*theta))"
                 />
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {[
-                    { label: 'Ring Torus Core', eq: 'exp(-((r-2)^2 + z^2)/1.2)' },
-                    { label: 'Plasma Column', eq: 'exp(-r^2/2) * abs(cos(z))' },
-                    { label: 'Helical Waveguide', eq: 'abs(sin(theta - z)) * exp(-r/2)' },
+                    { label: 'Ring Torus Core', eq: 'exp(-((rho-2)^2 + z^2)/1.2)' },
+                    { label: 'Plasma Column', eq: 'exp(-rho^2/2) * abs(cos(z))' },
+                    { label: 'Helical Waveguide', eq: 'abs(sin(theta - z)) * exp(-rho/2)' },
                   ].map((p) => (
                     <button
                       key={p.label}
@@ -789,7 +791,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
               <>
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-300 font-mono">
-                    [Fx, Fy, Fz](x, y, z)
+                    [F_x, F_y, F_z](x, y, z)
                   </span>
                   <span className="text-[10px] text-slate-500">Cartesian Vector Field</span>
                 </div>
@@ -824,7 +826,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
               <>
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-300 font-mono">
-                    [F_ρ, F_θ, F_φ](ρ, θ, φ)
+                    [F_r, F_θ, F_ψ](r, θ, ψ)
                   </span>
                   <span className="text-[10px] text-slate-500">Spherical Vector Field</span>
                 </div>
@@ -857,7 +859,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
               <>
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-300 font-mono">
-                    [F_r, F_θ, F_z](r, θ, z)
+                    [F_ρ, F_θ, F_z](ρ, θ, z)
                   </span>
                   <span className="text-[10px] text-slate-500">Cylindrical Vector Field</span>
                 </div>
@@ -1030,7 +1032,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
               <>
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-300 font-mono">
-                    ρ(t) · θ(t) · φ(t)
+                    r(t) · θ(t) · ψ(t)
                   </span>
                   <span className="text-[10px] text-slate-500">Spherical Curve</span>
                 </div>
@@ -1038,7 +1040,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                   <VisualMathField
                     value={pRho}
                     onChange={setPRho}
-                    prefixLabel="ρ(t) ="
+                    prefixLabel="r(t) ="
                     placeholder="2"
                     showToolbar={false}
                   />
@@ -1052,7 +1054,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                   <VisualMathField
                     value={pPhi}
                     onChange={setPPhi}
-                    prefixLabel="φ(t) ="
+                    prefixLabel="ψ(t) ="
                     placeholder="PI/2+sin(t*2)*0.4"
                     showToolbar={true}
                   />
@@ -1064,7 +1066,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
               <>
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-300 font-mono">
-                    r(t) · θ(t) · z(t)
+                    ρ(t) · θ(t) · z(t)
                   </span>
                   <span className="text-[10px] text-slate-500">Cylindrical Curve</span>
                 </div>
@@ -1072,7 +1074,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                   <VisualMathField
                     value={pR}
                     onChange={setPR}
-                    prefixLabel="r(t) ="
+                    prefixLabel="ρ(t) ="
                     placeholder="1"
                     showToolbar={false}
                   />
@@ -1579,7 +1581,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    Spherical (ρ, θ, φ)
+                    Spherical (r, θ, ψ)
                   </button>
                   <button
                     type="button"
@@ -1590,7 +1592,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    Cylindrical (r, θ, z)
+                    Cylindrical (ρ, θ, z)
                   </button>
                 </div>
               </div>
@@ -1631,8 +1633,8 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                     <VisualMathField
                       value={shapeCenterX}
                       onChange={setShapeCenterX}
-                      prefixLabel="ρ₀ ="
-                      placeholder="radius ρ e.g. 3 or 2+sin(t)"
+                      prefixLabel="r₀ ="
+                      placeholder="radius r e.g. 3 or 2+sin(t)"
                       size="large"
                       className="w-full"
                     />
@@ -1647,8 +1649,8 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                     <VisualMathField
                       value={shapeCenterZ}
                       onChange={setShapeCenterZ}
-                      prefixLabel="φ₀ ="
-                      placeholder="inclination φ from +z e.g. pi/2 or 0.5*t"
+                      prefixLabel="ψ₀ ="
+                      placeholder="polar inclination ψ from +z e.g. pi/2 or 0.5*t"
                       size="large"
                       className="w-full"
                     />
@@ -1660,8 +1662,8 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
                     <VisualMathField
                       value={shapeCenterX}
                       onChange={setShapeCenterX}
-                      prefixLabel="r₀ ="
-                      placeholder="radial distance r e.g. 2.5 or 2+cos(t)"
+                      prefixLabel="ρ₀ ="
+                      placeholder="radial distance ρ e.g. 2.5 or 2+cos(t)"
                       size="large"
                       className="w-full"
                     />
