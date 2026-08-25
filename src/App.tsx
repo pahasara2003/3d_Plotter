@@ -206,6 +206,7 @@ export default function App() {
       };
       setNextId((id) => id + 1);
       setLayers((prev) => [...prev, newLayer]);
+      setEditingLayerId(newLayer.id);
 
       if (newLayer.type === 'script') {
         setActiveScriptLayerId(newLayer.id);
@@ -636,7 +637,11 @@ export default function App() {
               onOpenFullIDE={handleOpenFullIDE}
               onOpenSplitView={handleOpenSplitView}
               editingLayer={editingLayer}
-              onUpdateLayer={handleSaveEditedLayer}
+              onUpdateLayer={handleUpdateLayer}
+              onStartNewPlot={() => {
+                setEditingLayerId(null);
+                setIsAddMenuOpen(true);
+              }}
               onCancelEdit={handleCancelEdit}
             />
           </aside>

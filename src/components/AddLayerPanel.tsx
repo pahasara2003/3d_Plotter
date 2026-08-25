@@ -13,6 +13,7 @@ interface AddLayerPanelProps {
   onOpenSplitView?: () => void;
   editingLayer?: LayerItem | null;
   onUpdateLayer?: (layer: LayerItem) => void;
+  onStartNewPlot?: () => void;
   onCancelEdit?: () => void;
 }
 
@@ -24,8 +25,12 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
   onOpenSplitView,
   editingLayer,
   onUpdateLayer,
+  onStartNewPlot,
   onCancelEdit,
 }) => {
+  const isPopulatingRef = React.useRef(false);
+  const currentEditingIdRef = React.useRef<number | null>(null);
+
   const [mainTab, setMainTab] = useState<MainTabType>('surfaceplot');
   const [schemes, setSchemes] = useState<Record<MainTabType, SchemeType>>({
     surfaceplot: 'cart',
@@ -101,8 +106,17 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
 
   // Automatically populate all panel inputs when editingLayer changes
   useEffect(() => {
+    const editId = editingLayer ? editingLayer.id : null;
+    if (editId === currentEditingIdRef.current) return;
+    currentEditingIdRef.current = editId;
+
+    isPopulatingRef.current = true;
     if (!editingLayer) {
       setLayerColor(nextColor || PALETTE[0]);
+      setLayerName('');
+      setTimeout(() => {
+        isPopulatingRef.current = false;
+      }, 50);
       return;
     }
 
@@ -183,7 +197,11 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
     setLayerName(editingLayer.name || '');
     if (editingLayer.R !== undefined) setRangeR(editingLayer.R);
     if (editingLayer.N !== undefined) setResolutionN(editingLayer.N);
-  }, [editingLayer]);
+
+    setTimeout(() => {
+      isPopulatingRef.current = false;
+    }, 50);
+  }, [editingLayer?.id]);
 
   const curScheme = schemes[mainTab];
 
@@ -191,7 +209,8 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
     setSchemes((prev) => ({ ...prev, [mainTab]: sch }));
   };
 
-  const handleAdd = () => {
+  // Helper to compile current layer data from active UI states
+  const getCurrentLayerData = (): Omit<LayerItem, 'id' | 'visible'> => {
     let type: LayerType = 'surface';
 
     if (mainTab === 'surfaceplot') {
@@ -214,7 +233,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
     const layerData: Omit<LayerItem, 'id' | 'visible'> = {
       type,
       color: layerColor,
-      name: computedName || 'Plot',
+      name: computedName || (editingLayer ? editingLayer.name : 'Plot'),
       R: rangeR,
       N: resolutionN,
     };
@@ -319,6 +338,74 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
       layerData.name = computedName || 'Custom Script Plot';
     }
 
+    return layerData;
+  };
+
+  // Real-time live auto-update to 3D graph as user modifies any equations or parameters
+  useEffect(() => {
+    if (!editingLayer || isPopulatingRef.current) return;
+    const currentData = getCurrentLayerData();
+    const updatedLayer: LayerItem = {
+      ...editingLayer,
+      ...currentData,
+      id: editingLayer.id,
+      visible: editingLayer.visible,
+    };
+    onUpdateLayer?.(updatedLayer);
+  }, [
+    editingLayer?.id,
+    mainTab,
+    curScheme,
+    surfEq,
+    sphEq,
+    cylEq,
+    densityEq,
+    densitySphEq,
+    densityCylEq,
+    densityColormap,
+    densityThreshold,
+    densityCoreIso,
+    densityMultiplier,
+    densityPower,
+    showDensityBoundingBox,
+    fieldEq,
+    fieldSphEq,
+    fieldCylEq,
+    fieldDisplay,
+    streamlineCount,
+    showArrowHeads,
+    px,
+    py,
+    pz,
+    pRho,
+    pTheta,
+    pPhi,
+    pR,
+    pThetaC,
+    pZ,
+    shapeType,
+    shapeRadius,
+    shapeRadius2,
+    shapeRadius3,
+    shapeWidth,
+    shapeHeight,
+    shapeDepth,
+    shapeCenterX,
+    shapeCenterY,
+    shapeCenterZ,
+    shapeAxis,
+    shapeWireframe,
+    shapeOpacity,
+    shapeSegments,
+    script,
+    layerColor,
+    layerName,
+    rangeR,
+    resolutionN,
+  ]);
+
+  const handleAdd = () => {
+    const layerData = getCurrentLayerData();
     if (editingLayer) {
       const updatedLayer: LayerItem = {
         ...editingLayer,
@@ -337,9 +424,9 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
     <div className="flex flex-col h-full bg-[#121216] border-l border-white/[0.08] shadow-2xl select-none overflow-hidden">
       {/* Panel Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08] bg-[#16161b]/90 shrink-0">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <div
-            className={`w-7 h-7 rounded-lg flex items-center justify-center border shadow-sm ${
+            className={`w-7 h-7 rounded-lg flex items-center justify-center border shadow-sm shrink-0 ${
               editingLayer
                 ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
                 : 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400'
@@ -347,33 +434,43 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
           >
             {editingLayer ? <Edit3 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
           </div>
-          <div>
-            <h2 className="text-sm font-semibold text-slate-100">
-              {editingLayer ? 'Change Plot' : 'Add New Plot'}
-            </h2>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-slate-100 truncate">
+                {editingLayer ? 'Edit Plot' : 'Add New Plot'}
+              </h2>
+              {editingLayer && (
+                <span className="flex items-center gap-1 text-[9.5px] font-mono font-medium px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Live
+                </span>
+              )}
+            </div>
             <p className="text-[11px] text-slate-400 truncate max-w-[280px]">
               {editingLayer
-                ? `Editing: ${editingLayer.name}`
+                ? `${editingLayer.name}`
                 : 'Surface, 3D Density, Vector, Basic Shapes, or Curves'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
-          {editingLayer && onCancelEdit && (
+        <div className="flex items-center gap-1.5 shrink-0">
+          {editingLayer && onStartNewPlot && (
             <button
               type="button"
-              onClick={onCancelEdit}
-              className="text-[11px] font-medium text-slate-400 hover:text-slate-200 px-2 py-1 rounded-md hover:bg-white/[0.06] transition-colors cursor-pointer"
+              onClick={onStartNewPlot}
+              className="text-[11px] font-medium text-indigo-300 hover:text-white px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-600 border border-indigo-500/30 transition-all flex items-center gap-1 cursor-pointer"
+              title="Switch to drafting a new plot"
             >
-              Cancel
+              <Plus className="w-3.5 h-3.5" />
+              <span>New Plot</span>
             </button>
           )}
 
           {onClose && (
             <button
               type="button"
-              onClick={editingLayer && onCancelEdit ? onCancelEdit : onClose}
+              onClick={onClose}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-white/[0.08] transition-colors cursor-pointer"
               title="Close panel"
             >
@@ -1831,29 +1928,40 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
       </div>
 
       {/* Fixed Bottom Action CTA */}
-      <div className="p-3.5 border-t border-white/[0.08] bg-[#16161b]/95 shrink-0 flex items-center gap-2">
-        {editingLayer && onCancelEdit && (
+      <div className="p-3.5 border-t border-white/[0.08] bg-[#16161b]/95 shrink-0 flex items-center justify-between gap-2">
+        {editingLayer ? (
+          <div className="flex items-center justify-between w-full gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="text-[11.5px] font-medium text-emerald-300 truncate font-mono">
+                Live Auto-Update Active
+              </span>
+            </div>
+
+            {onStartNewPlot && (
+              <button
+                type="button"
+                onClick={onStartNewPlot}
+                className="py-1.5 px-3 text-[11.5px] font-semibold rounded-xl bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Add New Plot</span>
+              </button>
+            )}
+          </div>
+        ) : (
           <button
             type="button"
-            onClick={onCancelEdit}
-            className="py-2.5 px-4 text-xs font-semibold rounded-xl bg-[#202028] hover:bg-[#282832] text-slate-300 hover:text-white border border-white/[0.1] transition-all cursor-pointer"
+            onClick={handleAdd}
+            className="w-full py-2.5 px-4 text-xs font-semibold rounded-xl active:scale-[0.98] text-white bg-indigo-600 hover:bg-indigo-500 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-950/50"
           >
-            Cancel
+            <Plus className="w-4 h-4" />
+            <span>Add Plot to Scene</span>
           </button>
         )}
-
-        <button
-          type="button"
-          onClick={handleAdd}
-          className={`flex-1 py-2.5 px-4 text-xs font-semibold rounded-xl active:scale-[0.98] text-white transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg ${
-            editingLayer
-              ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-950/50'
-              : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-950/50'
-          }`}
-        >
-          {editingLayer ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-          <span>{editingLayer ? 'Save Changes' : 'Add Plot to Scene'}</span>
-        </button>
       </div>
     </div>
   );
