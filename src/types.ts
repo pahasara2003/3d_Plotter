@@ -87,6 +87,7 @@ export interface LayerItem {
   shapeCenterX?: number | string; // center x e.g. 0 or "3*cos(t)"
   shapeCenterY?: number | string; // center y e.g. 0 or "3*sin(t)"
   shapeCenterZ?: number | string; // center z
+  shapeCoordSystem?: SchemeType; // coordinate system for center coordinates: 'cart' | 'sph' | 'cyl'
   shapeAxis?: 'x' | 'y' | 'z'; // alignment axis for cylinder/cone/torus/plane
   shapeSegments?: number;
   shapeWireframe?: boolean;

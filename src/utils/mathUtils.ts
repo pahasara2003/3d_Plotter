@@ -296,15 +296,20 @@ export function buildLatexDisplay(l: LayerItem): string {
   if (l.type === 'densityCyl') return `V(r,\\theta,z) = ${toLatex(l.eq)}`;
   if (l.type === 'shape') {
     const st = l.shapeType || 'sphere';
-    const cStr = `(${l.shapeCenterX ?? 0}, ${l.shapeCenterY ?? 0}, ${l.shapeCenterZ ?? 0})`;
-    if (st === 'sphere') return `\\text{Sphere: } R=${toLatex(String(l.shapeRadius ?? 2))},\\; \\mathbf{c}=${cStr}`;
-    if (st === 'cylinder') return `\\text{Cylinder: } r=${toLatex(String(l.shapeRadius ?? 1.5))},\\; h=${toLatex(String(l.shapeHeight ?? 4))}`;
-    if (st === 'cube') return `\\text{Box: } ${toLatex(String(l.shapeWidth ?? 3))}\\times${toLatex(String(l.shapeHeight ?? 3))}\\times${toLatex(String(l.shapeDepth ?? 3))}`;
-    if (st === 'cone') return `\\text{Cone: } r=${toLatex(String(l.shapeRadius ?? 2))},\\; h=${toLatex(String(l.shapeHeight ?? 3.5))}`;
-    if (st === 'torus') return `\\text{Torus: } R=${toLatex(String(l.shapeRadius ?? 2.5))},\\; r=${toLatex(String(l.shapeRadius2 ?? 0.6))}`;
-    if (st === 'plane') return `\\text{Plane: } ${toLatex(String(l.shapeWidth ?? 6))}\\times${toLatex(String(l.shapeHeight ?? 6))}`;
-    if (st === 'ellipsoid') return `\\text{Ellipsoid: } (${toLatex(String(l.shapeRadius ?? 2))}, ${toLatex(String(l.shapeRadius2 ?? 1.5))}, ${toLatex(String(l.shapeRadius3 ?? 1))})`;
-    return `\\text{Shape: ${st}}`;
+    const coordSystem = l.shapeCoordSystem || 'cart';
+    let cLabel = '\\mathbf{c}';
+    if (coordSystem === 'sph') cLabel = '\\mathbf{c}_{\\text{sph}}';
+    else if (coordSystem === 'cyl') cLabel = '\\mathbf{c}_{\\text{cyl}}';
+    const cStr = `${cLabel}=(${toLatex(String(l.shapeCenterX ?? 0))}, ${toLatex(String(l.shapeCenterY ?? 0))}, ${toLatex(String(l.shapeCenterZ ?? 0))})`;
+    
+    if (st === 'sphere') return `\\text{Sphere: } R=${toLatex(String(l.shapeRadius ?? 2))},\\; ${cStr}`;
+    if (st === 'cylinder') return `\\text{Cylinder: } r=${toLatex(String(l.shapeRadius ?? 1.5))},\\; h=${toLatex(String(l.shapeHeight ?? 4))},\\; ${cStr}`;
+    if (st === 'cube') return `\\text{Box: } ${toLatex(String(l.shapeWidth ?? 3))}\\times${toLatex(String(l.shapeHeight ?? 3))}\\times${toLatex(String(l.shapeDepth ?? 3))},\\; ${cStr}`;
+    if (st === 'cone') return `\\text{Cone: } r=${toLatex(String(l.shapeRadius ?? 2))},\\; h=${toLatex(String(l.shapeHeight ?? 3.5))},\\; ${cStr}`;
+    if (st === 'torus') return `\\text{Torus: } R=${toLatex(String(l.shapeRadius ?? 2.5))},\\; r=${toLatex(String(l.shapeRadius2 ?? 0.6))},\\; ${cStr}`;
+    if (st === 'plane') return `\\text{Plane: } ${toLatex(String(l.shapeWidth ?? 6))}\\times${toLatex(String(l.shapeHeight ?? 6))},\\; ${cStr}`;
+    if (st === 'ellipsoid') return `\\text{Ellipsoid: } (${toLatex(String(l.shapeRadius ?? 2))}, ${toLatex(String(l.shapeRadius2 ?? 1.5))}, ${toLatex(String(l.shapeRadius3 ?? 1))}),\\; ${cStr}`;
+    return `\\text{Shape: ${st}},\\; ${cStr}`;
   }
   if (l.type === 'script') return '\\texttt{script}';
   return '';

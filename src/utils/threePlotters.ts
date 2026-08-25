@@ -872,10 +872,33 @@ export function buildShapeObject(
   const opacity = ((layer.shapeOpacity ?? 90) / 100) * (settings.surfaceOpacity / 100);
   const segments = Math.max(12, Math.min(80, layer.shapeSegments || 32));
 
-  // Evaluate Center coordinates
-  const cx = evaluateNumericExpr(layer.shapeCenterX, scope, 0);
-  const cy = evaluateNumericExpr(layer.shapeCenterY, scope, 0);
-  const cz = evaluateNumericExpr(layer.shapeCenterZ, scope, 0);
+  // Evaluate Center coordinates with coordinate system support (cart, sph, cyl)
+  const c1 = evaluateNumericExpr(layer.shapeCenterX, scope, 0);
+  const c2 = evaluateNumericExpr(layer.shapeCenterY, scope, 0);
+  const c3 = evaluateNumericExpr(layer.shapeCenterZ, scope, 0);
+
+  let cx = c1;
+  let cy = c2;
+  let cz = c3;
+
+  const coordSystem = layer.shapeCoordSystem || 'cart';
+  if (coordSystem === 'sph') {
+    // Spherical coordinates: c1 = rho (radius), c2 = theta (azimuth), c3 = phi (inclination from +z)
+    const rho = c1;
+    const theta = c2;
+    const phi = c3;
+    cx = rho * Math.sin(phi) * Math.cos(theta);
+    cy = rho * Math.sin(phi) * Math.sin(theta);
+    cz = rho * Math.cos(phi);
+  } else if (coordSystem === 'cyl') {
+    // Cylindrical coordinates: c1 = r, c2 = theta, c3 = z
+    const rVal = c1;
+    const theta = c2;
+    const zVal = c3;
+    cx = rVal * Math.cos(theta);
+    cy = rVal * Math.sin(theta);
+    cz = zVal;
+  }
 
   // Evaluate Dimensions
   const r = Math.max(0.01, evaluateNumericExpr(layer.shapeRadius, scope, 2));
