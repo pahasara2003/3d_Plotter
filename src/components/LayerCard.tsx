@@ -122,22 +122,24 @@ export const LayerCard: React.FC<LayerCardProps> = ({
       </div>
 
       {/* KaTeX Math / Script preview */}
-      <div className="flex items-center justify-between text-slate-300 bg-[#0d0d10] px-3.5 py-2.5 rounded-xl border border-white/[0.06] overflow-x-auto min-h-[38px]">
+      <div className="flex items-center justify-between text-slate-300 bg-[#0d0d10] px-3.5 py-3 rounded-xl border border-white/[0.06] min-h-[46px] gap-2">
         {layer.type === 'script' ? (
-          <div className="font-mono text-xs text-emerald-300 truncate w-full">
+          <div className="font-mono text-xs text-emerald-300 truncate flex-1 min-w-0">
             {layer.script ? layer.script.split('\n').find((l) => l.trim() && !l.trim().startsWith('#')) || 'Python script active' : 'Python script active'}
           </div>
         ) : latexHtml ? (
-          <div
-            className="overflow-x-auto font-mono text-[15px] text-slate-100 [&_.katex]:text-[15.5px] [&_.katex]:leading-relaxed tracking-wide"
-            dangerouslySetInnerHTML={{ __html: latexHtml }}
-          />
+          <div className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden whitespace-nowrap py-1">
+            <div
+              className="inline-block font-mono text-[16px] text-slate-100 [&_.katex]:text-[16px] [&_.katex]:leading-relaxed tracking-wide"
+              dangerouslySetInnerHTML={{ __html: latexHtml }}
+            />
+          </div>
         ) : (
           <span className="text-slate-500 italic text-xs">No equation specified</span>
         )}
 
         {isEditing && (
-          <span className="text-[10.5px] font-mono font-medium text-indigo-300 bg-indigo-500/20 border border-indigo-500/30 px-2 py-0.5 rounded-md ml-2 shrink-0">
+          <span className="text-[10.5px] font-mono font-semibold text-indigo-300 bg-indigo-500/25 border border-indigo-500/40 px-2 py-1 rounded-lg shrink-0">
             Editing →
           </span>
         )}

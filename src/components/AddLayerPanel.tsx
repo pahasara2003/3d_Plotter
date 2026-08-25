@@ -1629,7 +1629,7 @@ export const AddLayerPanel: React.FC<AddLayerPanelProps> = ({
             <ScriptCodeEditor
               value={script}
               onChange={setScript}
-              heightClass="min-h-[300px] h-[360px]"
+              heightClass="min-h-[360px] h-[440px]"
               onOpenFullIDE={onOpenFullIDE ? () => onOpenFullIDE(script) : undefined}
               onOpenSplitView={onOpenSplitView}
               showLayoutButtons={true}

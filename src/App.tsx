@@ -496,7 +496,7 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden relative">
         {/* Left Sidebar Control Panel (Available in 'plot' mode) */}
         {viewMode === 'plot' && (
-          <aside className="w-[380px] min-w-[340px] max-w-[420px] flex flex-col border-r border-white/[0.08] bg-[#121215] overflow-hidden shrink-0">
+          <aside className="w-[440px] min-w-[380px] max-w-[500px] flex flex-col border-r border-white/[0.08] bg-[#121215] overflow-hidden shrink-0">
             {/* Scrollable Layer Stack */}
             <LayerList
               layers={layers}
@@ -625,7 +625,7 @@ export default function App() {
 
         {/* Right Sidebar: Dedicated Add New Plot / Change Plot Menu (Collapsible / Hideable) */}
         {viewMode === 'plot' && isAddMenuOpen && (
-          <aside className="w-[450px] min-w-[380px] max-w-[500px] flex flex-col border-l border-white/[0.08] bg-[#121216] overflow-hidden shrink-0 z-10 shadow-2xl">
+          <aside className="w-[540px] min-w-[480px] max-w-[650px] flex flex-col border-l border-white/[0.08] bg-[#121216] overflow-hidden shrink-0 z-10 shadow-2xl">
             <AddLayerPanel
               onAddLayer={handleAddLayer}
               nextColor={nextColor}

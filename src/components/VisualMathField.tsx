@@ -116,52 +116,54 @@ export const VisualMathField: React.FC<VisualMathFieldProps> = ({
     <div className={`flex flex-col gap-2 ${className}`}>
       {/* Mathfield Input Container */}
       <div
-        className={`relative flex items-center gap-2.5 rounded-xl bg-[#141418] border transition-all duration-200 ${
-          isLarge ? 'px-4 py-3 min-h-[48px]' : 'px-3 py-2 min-h-[38px]'
+        className={`relative flex items-center gap-2.5 rounded-2xl bg-[#141418] border transition-all duration-200 ${
+          isLarge ? 'px-4 py-3 min-h-[58px]' : 'px-3.5 py-2.5 min-h-[46px]'
         } ${
           isFocused
-            ? 'border-indigo-500/80 ring-2 ring-indigo-500/20 shadow-lg shadow-indigo-950/40 bg-[#16161d]'
+            ? 'border-indigo-500/80 ring-2 ring-indigo-500/20 shadow-lg shadow-indigo-950/40 bg-[#16161e]'
             : 'border-white/[0.12] hover:border-white/[0.22]'
         }`}
       >
         {/* Optional Prefix Label (e.g. z =, ρ =) */}
         {prefixLabel && (
           <span
-            className={`font-mono font-bold text-indigo-400 select-none shrink-0 pr-1.5 border-r border-white/[0.1] ${
-              isLarge ? 'text-sm' : 'text-xs'
+            className={`font-mono font-bold text-indigo-400 select-none shrink-0 pr-2 border-r border-white/[0.1] ${
+              isLarge ? 'text-[15px]' : 'text-xs'
             }`}
           >
             {prefixLabel}
           </span>
         )}
 
-        {/* The MathLive Interactive Mathfield Custom Element */}
-        <math-field
-          ref={mfRef}
-          class={`flex-1 text-slate-100 font-mono outline-none flex items-center ${
-            isLarge ? 'text-[17px] min-h-[34px]' : 'text-[14.5px] min-h-[26px]'
-          }`}
-          style={
-            {
-              backgroundColor: 'transparent',
-              border: 'none',
-              outline: 'none',
-              boxShadow: 'none',
-              padding: '0',
-              fontSize: isLarge ? '17px' : '14.5px',
-              '--smart-fence-opacity': '0.75',
-              '--selection-background-color': '#4338ca',
-              '--selection-color': '#ffffff',
-              '--contains-highlight-background-color': 'rgba(99, 102, 241, 0.15)',
-              '--placeholder-color': '#64748b',
-            } as React.CSSProperties
-          }
-        >
-          {value}
-        </math-field>
+        {/* Scrollable Mathfield Wrapper to ensure smooth horizontal scrolling without overflow */}
+        <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden whitespace-nowrap py-1 flex items-center">
+          <math-field
+            ref={mfRef}
+            class={`text-slate-100 font-mono outline-none inline-flex items-center min-w-full ${
+              isLarge ? 'text-[18px] min-h-[44px]' : 'text-[15.5px] min-h-[34px]'
+            }`}
+            style={
+              {
+                backgroundColor: 'transparent',
+                border: 'none',
+                outline: 'none',
+                boxShadow: 'none',
+                padding: '0',
+                fontSize: isLarge ? '18px' : '15.5px',
+                '--smart-fence-opacity': '0.75',
+                '--selection-background-color': '#4338ca',
+                '--selection-color': '#ffffff',
+                '--contains-highlight-background-color': 'rgba(99, 102, 241, 0.15)',
+                '--placeholder-color': '#64748b',
+              } as React.CSSProperties
+            }
+          >
+            {value}
+          </math-field>
+        </div>
 
         {/* Action icons */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0 pl-1">
           {value && (
             <button
               type="button"
