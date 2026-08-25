@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Eye, EyeOff, Edit3, Copy, Trash2 } from 'lucide-react';
+import { Eye, EyeOff, Copy, Trash2 } from 'lucide-react';
 import { LayerItem } from '../types';
 import { typeLabel, buildLatexDisplay, renderKatexToString } from '../utils/mathUtils';
 
@@ -27,12 +27,13 @@ export const LayerCard: React.FC<LayerCardProps> = ({
 
   return (
     <div
-      className={`rounded-xl border transition-all duration-200 p-3 mb-2 flex flex-col gap-2 relative ${
+      onClick={() => onEditLayer?.(layer.id)}
+      className={`rounded-xl border transition-all duration-200 p-3 mb-2 flex flex-col gap-2 relative cursor-pointer select-none ${
         isEditing
-          ? 'bg-[#181824] border-indigo-500/80 shadow-lg shadow-indigo-950/40 ring-1 ring-indigo-500/40'
+          ? 'bg-[#181826] border-indigo-500 ring-2 ring-indigo-500/30 shadow-lg shadow-indigo-950/50'
           : layer.visible
-          ? 'bg-[#15151a] border-white/[0.08] hover:border-white/[0.16] hover:bg-[#18181f]'
-          : 'bg-[#111114]/60 border-white/[0.04] opacity-60'
+          ? 'bg-[#15151a] border-white/[0.08] hover:border-indigo-500/40 hover:bg-[#181822]'
+          : 'bg-[#111114]/60 border-white/[0.04] opacity-60 hover:opacity-90 hover:border-white/[0.12]'
       }`}
     >
       {/* Header Row: Color Swatch + Name + Actions */}
@@ -43,7 +44,10 @@ export const LayerCard: React.FC<LayerCardProps> = ({
           <div className="relative group/color shrink-0">
             <button
               type="button"
-              onClick={() => colorInputRef.current?.click()}
+              onClick={(e) => {
+                e.stopPropagation();
+                colorInputRef.current?.click();
+              }}
               className="w-4 h-4 rounded-full border border-white/20 transition-transform group-hover/color:scale-110 cursor-pointer shadow-sm"
               style={{ backgroundColor: layer.color }}
               title="Change color"
@@ -71,24 +75,13 @@ export const LayerCard: React.FC<LayerCardProps> = ({
 
         {/* Right: Card Action Buttons */}
         <div className="flex items-center gap-1 shrink-0">
-          {/* Edit Plot in Right Panel */}
-          <button
-            type="button"
-            onClick={() => onEditLayer?.(layer.id)}
-            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-              isEditing
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-indigo-300 hover:bg-white/[0.08]'
-            }`}
-            title="Edit / Change Plot parameters on right panel"
-          >
-            <Edit3 className="w-3.5 h-3.5" />
-          </button>
-
           {/* Visibility Toggle */}
           <button
             type="button"
-            onClick={() => onToggleVisible(layer.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleVisible(layer.id);
+            }}
             className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
               layer.visible
                 ? 'text-slate-400 hover:text-slate-100 hover:bg-white/[0.08]'
@@ -102,7 +95,10 @@ export const LayerCard: React.FC<LayerCardProps> = ({
           {/* Duplicate Layer */}
           <button
             type="button"
-            onClick={() => onDuplicate(layer.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDuplicate(layer.id);
+            }}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-white/[0.08] transition-colors cursor-pointer"
             title="Duplicate plot layer"
           >
@@ -112,7 +108,10 @@ export const LayerCard: React.FC<LayerCardProps> = ({
           {/* Delete Layer */}
           <button
             type="button"
-            onClick={() => onDelete(layer.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(layer.id);
+            }}
             className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
             title="Delete plot layer"
           >
