@@ -1034,9 +1034,8 @@ export function buildLayerThreeObject(
     ) {
       return buildDensityPlotObject(layer, scope, settings);
     }
-
     if (layer.type === 'surface' && layer.eq) {
-      const compiled = math.compile(layer.eq);
+      const evalSurface = getFastEvaluator(layer.eq);
       const stepX = (xMax - xMin) / N;
       const stepY = (yMax - yMin) / N;
 
@@ -1045,7 +1044,7 @@ export function buildLayerThreeObject(
         const y = yMin + j * stepY;
         let z = 0;
         try {
-          z = compiled.evaluate({ ...scope, x, y });
+          z = evalSurface(scope, x, y);
           if (!isFinite(z)) z = 0;
         } catch {
           z = 0;
@@ -1056,7 +1055,7 @@ export function buildLayerThreeObject(
     }
 
     if (layer.type === 'spherical' && layer.eq) {
-      const compiled = math.compile(layer.eq);
+      const evalSph = getFastEvaluator(layer.eq);
       const stepT = (2 * Math.PI) / N;
       const stepP = Math.PI / N;
       return makeGridSurfaceMesh(N, layer.color, tintRatio, opacity, wireframe, (i, j) => {
@@ -1064,7 +1063,7 @@ export function buildLayerThreeObject(
         const phi = j * stepP;
         let rho = 0;
         try {
-          rho = compiled.evaluate({ ...scope, theta, phi });
+          rho = evalSph(scope, undefined, undefined, undefined, undefined, theta, phi, undefined, undefined);
           if (!isFinite(rho)) rho = 0;
         } catch {
           rho = 0;
@@ -1078,7 +1077,7 @@ export function buildLayerThreeObject(
     }
 
     if (layer.type === 'cylindrical' && layer.eq) {
-      const compiled = math.compile(layer.eq);
+      const evalCyl = getFastEvaluator(layer.eq);
       const stepT = (2 * Math.PI) / N;
       const stepZ = (zMax - zMin) / N;
       return makeGridSurfaceMesh(N, layer.color, tintRatio, opacity, wireframe, (i, j) => {
@@ -1086,7 +1085,7 @@ export function buildLayerThreeObject(
         const z = zMin + j * stepZ;
         let r = 0;
         try {
-          r = compiled.evaluate({ ...scope, theta, z });
+          r = evalCyl(scope, undefined, undefined, z, undefined, theta);
           if (!isFinite(r)) r = 0;
         } catch {
           r = 0;
@@ -1109,15 +1108,15 @@ export function buildLayerThreeObject(
         fyE = m[2].trim();
         fzE = m[3].trim();
       }
-      const fx = math.compile(fxE);
-      const fy = math.compile(fyE);
-      const fz = math.compile(fzE);
+      const evalFx = getFastEvaluator(fxE);
+      const evalFy = getFastEvaluator(fyE);
+      const evalFz = getFastEvaluator(fzE);
 
       const evalField = (x: number, y: number, z: number): [number, number, number] | null => {
         try {
-          const vx = fx.evaluate({ ...scope, x, y, z });
-          const vy = fy.evaluate({ ...scope, x, y, z });
-          const vz = fz.evaluate({ ...scope, x, y, z });
+          const vx = evalFx(scope, x, y, z);
+          const vy = evalFy(scope, x, y, z);
+          const vz = evalFz(scope, x, y, z);
           if (!isFinite(vx) || !isFinite(vy) || !isFinite(vz)) return null;
           return [vx, vy, vz];
         } catch {
@@ -1144,9 +1143,9 @@ export function buildLayerThreeObject(
         ftE = m[2].trim();
         fpE = m[3].trim();
       }
-      const fr = math.compile(frE);
-      const ft = math.compile(ftE);
-      const fp = math.compile(fpE);
+      const evalFr = getFastEvaluator(frE);
+      const evalFt = getFastEvaluator(ftE);
+      const evalFp = getFastEvaluator(fpE);
 
       const evalField = (x: number, y: number, z: number): [number, number, number] | null => {
         try {
@@ -1157,47 +1156,20 @@ export function buildLayerThreeObject(
           if (theta < 0) theta += 2 * Math.PI;
           const phi = Math.acos(Math.max(-1, Math.min(1, z / rho)));
 
-          const frV = fr.evaluate({ ...scope, rho, theta, phi });
-          const ftV = ft.evaluate({ ...scope, rho, theta, phi });
-          const fpV = fp.evaluate({ ...scope, rho, theta, phi });
+          const frV = evalFr(scope, undefined, undefined, undefined, undefined, theta, phi, rho);
+          const ftV = evalFt(scope, undefined, undefined, undefined, undefined, theta, phi, rho);
+          const fpV = evalFp(scope, undefined, undefined, undefined, undefined, theta, phi, rho);
           if (!isFinite(frV) || !isFinite(ftV) || !isFinite(fpV)) return null;
 
-          let eRx = x / rho;
-          let eRy = y / rho;
-          let eRz = z / rho;
-          let eTx = 0;
-          let eTy = 0;
-          let eTz = 0;
-          let ePx = 0;
-          let ePy = 0;
-          let ePz = 0;
+          const sinP = Math.sin(phi);
+          const cosP = Math.cos(phi);
+          const sinT = Math.sin(theta);
+          const cosT = Math.cos(theta);
 
-          if (rxy > 1e-5) {
-            const cosT = x / rxy;
-            const sinT = y / rxy;
-            const cosP = z / rho;
-            const sinP = rxy / rho;
+          const vx = frV * sinP * cosT + fpV * cosP * cosT - ftV * sinT;
+          const vy = frV * sinP * sinT + fpV * cosP * sinT + ftV * cosT;
+          const vz = frV * cosP - fpV * sinP;
 
-            eTx = -sinT;
-            eTy = cosT;
-            eTz = 0;
-
-            ePx = cosP * cosT;
-            ePy = cosP * sinT;
-            ePz = -sinP;
-          } else {
-            const sgnZ = z >= 0 ? 1 : -1;
-            eRx = 0;
-            eRy = 0;
-            eRz = sgnZ;
-            ePx = sgnZ * Math.cos(theta);
-            ePy = sgnZ * Math.sin(theta);
-            ePz = 0;
-          }
-
-          const vx = frV * eRx + ftV * eTx + fpV * ePx;
-          const vy = frV * eRy + ftV * eTy + fpV * ePy;
-          const vz = frV * eRz + ftV * eTz + fpV * ePz;
           return [vx, vy, vz];
         } catch {
           return null;
@@ -1223,9 +1195,9 @@ export function buildLayerThreeObject(
         ftE = m[2].trim();
         fzE = m[3].trim();
       }
-      const fr = math.compile(frE);
-      const ft = math.compile(ftE);
-      const fz = math.compile(fzE);
+      const evalFr = getFastEvaluator(frE);
+      const evalFt = getFastEvaluator(ftE);
+      const evalFz = getFastEvaluator(fzE);
 
       const evalField = (x: number, y: number, z: number): [number, number, number] | null => {
         try {
@@ -1233,9 +1205,9 @@ export function buildLayerThreeObject(
           let theta = Math.atan2(y, x);
           if (theta < 0) theta += 2 * Math.PI;
 
-          const frV = fr.evaluate({ ...scope, r, theta, z });
-          const ftV = ft.evaluate({ ...scope, r, theta, z });
-          const fzV = fz.evaluate({ ...scope, r, theta, z });
+          const frV = evalFr(scope, undefined, undefined, z, undefined, theta, undefined, undefined, r);
+          const ftV = evalFt(scope, undefined, undefined, z, undefined, theta, undefined, undefined, r);
+          const fzV = evalFz(scope, undefined, undefined, z, undefined, theta, undefined, undefined, r);
           if (!isFinite(frV) || !isFinite(ftV) || !isFinite(fzV)) return null;
 
           const cosT = Math.cos(theta);
@@ -1243,6 +1215,7 @@ export function buildLayerThreeObject(
           const vx = frV * cosT - ftV * sinT;
           const vy = frV * sinT + ftV * cosT;
           const vz = fzV;
+
           return [vx, vy, vz];
         } catch {
           return null;
@@ -1258,25 +1231,27 @@ export function buildLayerThreeObject(
     }
 
     if (layer.type === 'param' && layer.px && layer.py && layer.pz) {
-      const pxE = math.compile(layer.px);
-      const pyE = math.compile(layer.py);
-      const pzE = math.compile(layer.pz);
-      return makeCurveLine(layer.color, (t) => {
-        const x = pxE.evaluate({ ...scope, t });
-        const y = pyE.evaluate({ ...scope, t });
-        const z = pzE.evaluate({ ...scope, t });
+      const evalPx = getFastEvaluator(layer.px);
+      const evalPy = getFastEvaluator(layer.py);
+      const evalPz = getFastEvaluator(layer.pz);
+      return makeCurveLine(layer.color, (tVal) => {
+        const x = evalPx(scope, 0, 0, 0, tVal);
+        const y = evalPy(scope, 0, 0, 0, tVal);
+        const z = evalPz(scope, 0, 0, 0, tVal);
+        if (!isFinite(x) || !isFinite(y) || !isFinite(z)) return null;
         return mapMathToThree(x, y, z, settings);
       });
     }
 
     if (layer.type === 'paramSph' && layer.pRho && layer.pTheta && layer.pPhi) {
-      const rhoE = math.compile(layer.pRho);
-      const thetaE = math.compile(layer.pTheta);
-      const phiE = math.compile(layer.pPhi);
-      return makeCurveLine(layer.color, (t) => {
-        const rho = rhoE.evaluate({ ...scope, t });
-        const theta = thetaE.evaluate({ ...scope, t });
-        const phi = phiE.evaluate({ ...scope, t });
+      const evalRho = getFastEvaluator(layer.pRho);
+      const evalTheta = getFastEvaluator(layer.pTheta);
+      const evalPhi = getFastEvaluator(layer.pPhi);
+      return makeCurveLine(layer.color, (tVal) => {
+        const rho = evalRho(scope, 0, 0, 0, tVal);
+        const theta = evalTheta(scope, 0, 0, 0, tVal);
+        const phi = evalPhi(scope, 0, 0, 0, tVal);
+        if (!isFinite(rho) || !isFinite(theta) || !isFinite(phi)) return null;
         const x = rho * Math.sin(phi) * Math.cos(theta);
         const y = rho * Math.sin(phi) * Math.sin(theta);
         const z = rho * Math.cos(phi);
@@ -1285,13 +1260,14 @@ export function buildLayerThreeObject(
     }
 
     if (layer.type === 'paramCyl' && layer.pR && layer.pThetaC && layer.pZ) {
-      const rE = math.compile(layer.pR);
-      const thetaE = math.compile(layer.pThetaC);
-      const zE = math.compile(layer.pZ);
-      return makeCurveLine(layer.color, (t) => {
-        const r = rE.evaluate({ ...scope, t });
-        const theta = thetaE.evaluate({ ...scope, t });
-        const z = zE.evaluate({ ...scope, t });
+      const evalR = getFastEvaluator(layer.pR);
+      const evalTheta = getFastEvaluator(layer.pThetaC);
+      const evalZ = getFastEvaluator(layer.pZ);
+      return makeCurveLine(layer.color, (tVal) => {
+        const r = evalR(scope, 0, 0, 0, tVal);
+        const theta = evalTheta(scope, 0, 0, 0, tVal);
+        const z = evalZ(scope, 0, 0, 0, tVal);
+        if (!isFinite(r) || !isFinite(theta) || !isFinite(z)) return null;
         const x = r * Math.cos(theta);
         const y = r * Math.sin(theta);
         return mapMathToThree(x, y, z, settings);

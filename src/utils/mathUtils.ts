@@ -49,11 +49,15 @@ export function latexToInfix(latex: string): string {
   if (!latex) return '';
   let s = latex.trim();
 
-  // If already plain ASCII without LaTeX commands or braces, return directly
-  if (!s.includes('\\') && !s.includes('{') && !s.includes('}')) {
-    // Add implicit multiplication for cases like 2x -> 2*x
-    return s.replace(/(\d)\s*([a-zA-Z(])/g, '$1 * $2').replace(/(\))\s*([a-zA-Z0-9(])/g, '$1 * $2');
-  }
+  // Strip delimiter and spacing commands first so they do not trigger false implicit multiplication
+  s = s.replace(/\\left\b/g, '');
+  s = s.replace(/\\right\b/g, '');
+  s = s.replace(/\\,/g, ' ');
+  s = s.replace(/\\:/g, ' ');
+  s = s.replace(/\\;/g, ' ');
+  s = s.replace(/\\!/g, ' ');
+  s = s.replace(/\\quad/g, ' ');
+  s = s.replace(/\\qquad/g, ' ');
 
   // Replace explicit multiplication commands early
   s = s.replace(/\\cdot\b/g, ' * ');
@@ -61,7 +65,6 @@ export function latexToInfix(latex: string): string {
   s = s.replace(/\\ast\b/g, ' * ');
 
   // Handle absolute values: \left| ... \right| and |...|
-  s = s.replace(/\\left\|\s*([^|\n]+?)\s*\\right\|/g, 'abs($1)');
   s = s.replace(/\|([^|\n]+?)\|/g, 'abs($1)');
 
   // Handle trig/function powers like \cos^2(x) or \sin^{2}(\theta)
@@ -70,15 +73,8 @@ export function latexToInfix(latex: string): string {
     '($1($3))^$2'
   );
 
-  // Remove spacing commands
-  s = s.replace(/\\left/g, '');
-  s = s.replace(/\\right/g, '');
-  s = s.replace(/\\,/g, ' ');
-  s = s.replace(/\\:/g, ' ');
-  s = s.replace(/\\;/g, ' ');
-  s = s.replace(/\\!/g, ' ');
-  s = s.replace(/\\quad/g, ' ');
-  s = s.replace(/\\qquad/g, ' ');
+  // Insert multiplication between letter/digit/closing paren and a backslash command (e.g. t\sin -> t * \sin, \rho\sin -> \rho * \sin)
+  s = s.replace(/([a-zA-Z0-9)])\\([a-zA-Z]+)/g, '$1 * \\$2');
 
   // Remove \operatorname{...}, \mathrm{...}, \text{...}
   s = s.replace(/\\(?:operatorname|mathrm|text)\{([^}]+)\}/g, '$1');
@@ -204,16 +200,25 @@ export function latexToInfix(latex: string): string {
     'asin',
     'acos',
     'atan',
+    'atan2',
+    'asinh',
+    'acosh',
+    'atanh',
     'exp',
+    'ln',
     'log',
     'log10',
+    'log2',
     'sqrt',
+    'cbrt',
     'abs',
     'round',
     'floor',
     'ceil',
     'min',
     'max',
+    'sign',
+    'mod',
   ]);
 
   // Insert multiplication between variable and '(' if not a known math function
@@ -222,9 +227,9 @@ export function latexToInfix(latex: string): string {
     return `${fn} * (`;
   });
 
-  // Convert adjacent single-letter math variables (xy -> x * y, yz -> y * z, etc.)
-  s = s.replace(/\b([xyzuv])([xyzuv])\b/g, '$1 * $2');
-  s = s.replace(/\b([xyzuv])([xyzuv])([xyzuv])\b/g, '$1 * $2 * $3');
+  // Convert adjacent single-letter math variables (xy -> x * y, xt -> x * t, etc.)
+  s = s.replace(/\b([xyzuvtr])([xyzuvtr])\b/g, '$1 * $2');
+  s = s.replace(/\b([xyzuvtr])([xyzuvtr])([xyzuvtr])\b/g, '$1 * $2 * $3');
 
   return s.trim();
 }
@@ -418,7 +423,8 @@ export function getFastEvaluator(expr: string): FastEvalFn {
         if (name === 'x') return '(x !== undefined ? x : (scope.x ?? 0))';
         if (name === 'y') return '(y !== undefined ? y : (scope.y ?? 0))';
         if (name === 'z') return '(z !== undefined ? z : (scope.z ?? 0))';
-        if (name === 't' || name === 'time') return '(t !== undefined ? t : (scope.t ?? scope.time ?? 0))';
+        if (name === 't') return '(t !== undefined ? t : (scope.t ?? scope.time ?? 0))';
+        if (name === 'time') return '(scope.time ?? scope.t ?? 0)';
         if (name === 'theta') return '(theta !== undefined ? theta : (scope.theta ?? 0))';
         if (name === 'phi') return '(phi !== undefined ? phi : (scope.phi ?? 0))';
         if (name === 'rho') return '(rho !== undefined ? rho : (scope.rho ?? 0))';

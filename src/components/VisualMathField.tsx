@@ -36,12 +36,17 @@ export const VisualMathField: React.FC<VisualMathFieldProps> = ({
 }) => {
   const mfRef = useRef<MathfieldElement | null>(null);
   const [isFocused, setIsFocused] = useState(false);
+  const lastEmittedLatex = useRef(value);
 
-  // Synchronize external value to mathfield when changed externally
+  // Synchronize external value to mathfield when changed externally (e.g. presets, layer select)
   useEffect(() => {
     const mf = mfRef.current;
-    if (mf && mf.value !== value) {
-      mf.setValue(value || '', { silenceNotifications: true });
+    if (!mf) return;
+    if (value !== lastEmittedLatex.current) {
+      lastEmittedLatex.current = value;
+      if (mf.value !== value) {
+        mf.setValue(value || '', { silenceNotifications: true });
+      }
     }
   }, [value]);
 
@@ -52,11 +57,19 @@ export const VisualMathField: React.FC<VisualMathFieldProps> = ({
 
     mf.smartFence = true;
     mf.smartSuperscript = true;
-    mf.smartMode = true;
+    mf.smartMode = false; // Pure math mode: ensures variables & functions are not converted into text
     mf.virtualKeyboardMode = 'manual';
+    if ((mf as any).mathVirtualKeyboardPolicy) {
+      (mf as any).mathVirtualKeyboardPolicy = 'manual';
+    }
+
+    if (value && mf.value !== value) {
+      mf.setValue(value, { silenceNotifications: true });
+    }
 
     const handleInput = () => {
       const latex = mf.getValue('latex-expanded') || mf.getValue('latex') || '';
+      lastEmittedLatex.current = latex;
       onChange(latex);
     };
 
@@ -86,7 +99,10 @@ export const VisualMathField: React.FC<VisualMathFieldProps> = ({
     const mf = mfRef.current;
     if (!mf) return;
     mf.focus();
-    mf.insert(latexCmd);
+    mf.insert(latexCmd, { focus: true });
+    const latex = mf.getValue('latex-expanded') || mf.getValue('latex') || '';
+    lastEmittedLatex.current = latex;
+    onChange(latex);
   };
 
   const toggleVirtualKeyboard = () => {
@@ -105,6 +121,7 @@ export const VisualMathField: React.FC<VisualMathFieldProps> = ({
   const handleClear = () => {
     const mf = mfRef.current;
     if (!mf) return;
+    lastEmittedLatex.current = '';
     mf.setValue('', { silenceNotifications: true });
     onChange('');
     mf.focus();
@@ -157,9 +174,7 @@ export const VisualMathField: React.FC<VisualMathFieldProps> = ({
                 '--placeholder-color': '#64748b',
               } as React.CSSProperties
             }
-          >
-            {value}
-          </math-field>
+          />
         </div>
 
         {/* Action icons */}
