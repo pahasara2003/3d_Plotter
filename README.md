@@ -2,6 +2,8 @@
 
 A high-performance, interactive 3D mathematical visualization platform and Python scripting environment built with **React 19**, **Three.js**, **WebAssembly (Pyodide)**, **Math.js**, and **Tailwind CSS**.
 
+Preview :  https://pahasara2003.github.io/3d_Plotter/
+
 ![3D Plotter Banner](https://img.shields.io/badge/3D-Plotter-indigo?style=for-the-badge&logo=three.js)
 ![React](https://img.shields.io/badge/React-19.0-61dafb?style=for-the-badge&logo=react)
 ![Three.js](https://img.shields.io/badge/Three.js-r185-black?style=for-the-badge&logo=three.js)
